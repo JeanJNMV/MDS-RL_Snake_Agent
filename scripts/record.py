@@ -1,11 +1,11 @@
-import gymnasium as gym
-import gymnasium_snake_game
-from stable_baselines3 import DQN
-import numpy as np
-import cv2
 import os
 import time
+
+import cv2
+import gymnasium as gym
+import numpy as np
 import pygame
+from stable_baselines3 import DQN
 
 from rl_snake.wrapper import EnhancedSnakeWrapper
 

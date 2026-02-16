@@ -1,6 +1,4 @@
 import gymnasium as gym
-import gymnasium_snake_game
-
 import numpy as np
 from stable_baselines3 import DQN
 

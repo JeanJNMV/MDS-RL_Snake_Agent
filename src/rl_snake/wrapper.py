@@ -1,12 +1,11 @@
 import gymnasium as gym
 import numpy as np
-
 from gymnasium import ObservationWrapper, Wrapper
 from stable_baselines3.common.callbacks import BaseCallback
 
 
 class EnhancedSnakeWrapper(ObservationWrapper, Wrapper):
-    """Combined wrapper: enhanced observations + reward shaping + loop detection"""
+    """Combined wrapper: enhanced observations + reward shaping + loop detection."""
 
     def __init__(self, env):
         super().__init__(env)
@@ -15,7 +14,10 @@ class EnhancedSnakeWrapper(ObservationWrapper, Wrapper):
         grid_size = 16 * 16 * 3
         extra_features = 6
         self.observation_space = gym.spaces.Box(
-            low=0, high=1, shape=(grid_size + extra_features,), dtype=np.float32
+            low=0,
+            high=1,
+            shape=(grid_size + extra_features,),
+            dtype=np.float32,
         )
 
         # State tracking
@@ -52,7 +54,9 @@ class EnhancedSnakeWrapper(ObservationWrapper, Wrapper):
 
         enhanced_obs = np.concatenate(
             [flat_grid, [head_x, head_y, food_x, food_y, dx, dy]]
-        ).astype(np.float32)
+        ).astype(
+            np.float32,
+        )
 
         return enhanced_obs
 
@@ -143,7 +147,7 @@ class TrainingMonitor(BaseCallback):
                         f"Episodes: {len(self.episode_rewards):5d} | "
                         f"Avg Reward: {np.mean(recent_rewards):7.2f} | "
                         f"Avg Length: {np.mean(recent_lengths):6.1f} | "
-                        f"Total Food: {self.food_count:5d}"
+                        f"Total Food: {self.food_count:5d}",
                     )
 
         return True

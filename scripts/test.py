@@ -1,13 +1,12 @@
 import gymnasium as gym
-import gymnasium_snake_game
-from stable_baselines3 import DQN
 import numpy as np
+from stable_baselines3 import DQN
 
 from rl_snake.wrapper import EnhancedSnakeWrapper
 
 
 def test_snake_agent(model_path="./models/snake_agent", num_episodes=20):
-    """Test the trained Snake agent"""
+    """Test the trained Snake agent."""
     print("=" * 70)
     print("Testing Snake Agent")
     print("=" * 70)
@@ -50,14 +49,11 @@ def test_snake_agent(model_path="./models/snake_agent", num_episodes=20):
                 "food": food_count,
                 "length": ep_length,
                 "reward": ep_reward,
-            }
+            },
         )
 
         print(
-            f"Episode {episode + 1:2d}: "
-            f"Food={food_count:3d} | "
-            f"Steps={ep_length:4d} | "
-            f"Reward={ep_reward:8.1f}"
+            f"Episode {episode + 1:2d}: Food={food_count:3d} | Steps={ep_length:4d} | Reward={ep_reward:8.1f}",
         )
 
     # Calculate statistics
