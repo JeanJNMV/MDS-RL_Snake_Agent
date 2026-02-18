@@ -5,7 +5,6 @@ import time
 
 import cv2
 import gymnasium as gym
-import gymnasium_snake_game
 import numpy as np
 import pygame
 

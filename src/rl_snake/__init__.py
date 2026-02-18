@@ -1,0 +1,1 @@
+import gymnasium_snake_game  # noqa: F401

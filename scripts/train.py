@@ -3,13 +3,12 @@ import os
 import sys
 
 import gymnasium as gym
-import gymnasium_snake_game
 import numpy as np
 
 from stable_baselines3.common.env_util import make_vec_env
 
-from rl_snake.wrapper import EnhancedSnakeWrapper, TrainingMonitor
-from rl_snake.utils import load_config
+from rl_snake.wrapper import EnhancedSnakeWrapper
+from rl_snake.utils import load_config, TrainingMonitor
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 

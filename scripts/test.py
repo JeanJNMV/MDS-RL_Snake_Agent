@@ -3,7 +3,6 @@ import os
 import sys
 
 import gymnasium as gym
-import gymnasium_snake_game
 import numpy as np
 
 from rl_snake.wrapper import EnhancedSnakeWrapper
