@@ -1,38 +1,47 @@
+import argparse
 import os
+import sys
 import time
 
 import cv2
 import gymnasium as gym
+import gymnasium_snake_game
 import numpy as np
 import pygame
-from stable_baselines3 import DQN
 
 from rl_snake.wrapper import EnhancedSnakeWrapper
+from rl_snake.utils import load_model_class
+
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
+# Recording
 def record_snake_agent(
-    model_path="./models/snake_agent",
-    output_folder="./videos",
-    num_episodes=5,
-    fps=15,
+    model_name: str,
+    model_path: str,
+    output_folder: str,
+    num_episodes: int,
+    fps: int,
 ):
-    """Record videos of the Snake agent playing"""
     os.makedirs(output_folder, exist_ok=True)
 
-    # Load model with non-rendering environment first
+    MODEL_CLASS = load_model_class(model_name)
+
+    # Load model with non-rendering env
     base_env = gym.make("Snake-v1")
     env = EnhancedSnakeWrapper(base_env)
 
-    print(f"Loading model from {model_path}.zip...")
-    model_name = os.path.basename(model_path)
-    model = DQN.load(model_path, env=env)
+    print(f"Loading model from {model_path}.zip.")
+    model = MODEL_CLASS.load(model_path, env=env)
     env.close()
 
-    # Create rendering environment
+    # Rendering env
     base_env = gym.make("Snake-v1", render_mode="human")
     env = EnhancedSnakeWrapper(base_env)
 
-    print(f"Recording {num_episodes} episode(s) to '{output_folder}' folder...\n")
+    model_name_only = os.path.basename(model_path)
+
+    print(f"Recording {num_episodes} episode(s) to '{output_folder}' folder.\n")
 
     for episode in range(num_episodes):
         obs, info = env.reset()
@@ -44,7 +53,6 @@ def record_snake_agent(
         time.sleep(0.5)
 
         while not done:
-            # Capture frame
             screen = pygame.display.get_surface()
             if screen is not None:
                 frame = pygame.surfarray.array3d(screen)
@@ -52,7 +60,6 @@ def record_snake_agent(
                 frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
                 frames.append(frame)
 
-            # Take action
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
 
@@ -67,10 +74,10 @@ def record_snake_agent(
         if frames:
             output_path = os.path.join(
                 output_folder,
-                f"{model_name}_episode_{episode + 1}_food_{food_count}_steps_{steps}.mp4",
+                f"{model_name_only}_episode_{episode + 1}.mp4",
             )
-            height, width = frames[0].shape[:2]
 
+            height, width = frames[0].shape[:2]
             fourcc = cv2.VideoWriter_fourcc(*"mp4v")
             out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
@@ -78,6 +85,7 @@ def record_snake_agent(
                 out.write(frame)
 
             out.release()
+
             print(f"Episode {episode + 1}: Saved {output_path}")
             print(
                 f"  Food eaten: {food_count} | Steps: {steps} | Frames: {len(frames)}"
@@ -86,13 +94,55 @@ def record_snake_agent(
             print(f"Episode {episode + 1}: No frames captured")
 
     env.close()
-    print(f"\nRecording complete! Videos saved to '{output_folder}/' folder")
+    print(f"\nRecording complete! Videos saved to '{output_folder}/'")
 
 
+# -------------------------------------------------
+# CLI
+# -------------------------------------------------
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--model",
+        type=str,
+        choices=["dqn", "double_dqn", "a2c", "ppo"],
+        default="dqn",
+    )
+
+    parser.add_argument(
+        "--model-path",
+        type=str,
+        default=None,
+    )
+
+    parser.add_argument(
+        "--output-folder",
+        type=str,
+        default="./videos",
+    )
+
+    parser.add_argument(
+        "--episodes",
+        type=int,
+        default=5,
+    )
+
+    parser.add_argument(
+        "--fps",
+        type=int,
+        default=15,
+    )
+
+    args = parser.parse_args()
+
+    model_name = args.model
+    model_path = args.model_path if args.model_path else f"./models/snake_{model_name}"
+
     record_snake_agent(
-        model_path="./models/snake_agent",
-        output_folder="videos",
-        num_episodes=5,
-        fps=15,
+        model_name=model_name,
+        model_path=model_path,
+        output_folder=args.output_folder,
+        num_episodes=args.episodes,
+        fps=args.fps,
     )
