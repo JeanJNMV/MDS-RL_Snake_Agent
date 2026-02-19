@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import json
 
 import gymnasium as gym
 import numpy as np
@@ -21,6 +22,24 @@ def make_env(state_type, reward_type):
         state_type=state_type,
         reward_type=reward_type,
     )
+
+
+# Save configuration alongside model
+def save_training_config(
+    save_path, model_class, model_config, state_type, reward_type, use_vec_env, n_envs
+):
+    py_path = save_path + ".py"
+    with open(py_path, "w") as f:
+        f.write("# Auto-generated training configuration\n")
+        # Import the correct class
+        f.write(f"from stable_baselines3 import {model_class.__name__}\n\n")
+        f.write(f"MODEL_CLASS = {model_class.__name__}\n\n")
+        f.write("MODEL_CONFIG = " + json.dumps(model_config, indent=4) + "\n")
+        f.write(f"STATE_TYPE = '{state_type}'\n")
+        f.write(f"REWARD_TYPE = '{reward_type}'\n")
+        f.write(f"USE_VEC_ENV = {use_vec_env}\n")
+        f.write(f"N_ENVS = {n_envs}\n")
+    print(f"Training configuration saved as '{py_path}'")
 
 
 # Training
@@ -65,6 +84,15 @@ def train(
     )
 
     model.save(save_path)
+    save_training_config(
+        save_path,
+        MODEL_CLASS,
+        MODEL_CONFIG,
+        state_type,
+        reward_type,
+        use_vec_env,
+        n_envs,
+    )
 
     print("\nTraining complete!")
     print(f"Model saved as '{save_path}.zip'")
@@ -124,7 +152,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--use-vec-env",
         action="store_true",
-        default=True,
+        default=False,
         help="Use vectorized environment (for A2C/PPO). Default: True",
     )
 

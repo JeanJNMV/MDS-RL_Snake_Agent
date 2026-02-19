@@ -1,4 +1,5 @@
 import argparse
+import importlib.util
 import os
 import sys
 
@@ -6,30 +7,36 @@ import gymnasium as gym
 import numpy as np
 
 from rl_snake.wrapper import ModularSnakeWrapper
-from rl_snake.utils import load_model_class
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
+# Load training config from a .py file
+def load_training_config(config_path):
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Training config file not found: {config_path}")
+    spec = importlib.util.spec_from_file_location("training_config", config_path)
+    cfg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cfg)
+    return cfg
+
+
 # Testing
-def test_snake_agent(
-    model_name: str,
-    model_path: str,
-    num_episodes: int,
-    state_type: str,
-    reward_type: str,
-):
-    print(f"Testing {model_name.upper()} Agent")
-    print(f"State: {state_type} | Reward: {reward_type}")
+def test_snake_agent(model_path: str, num_episodes: int):
+    # Load config from the corresponding .py file
+    cfg = load_training_config(model_path + ".py")
 
-    MODEL_CLASS = load_model_class(model_name)
+    MODEL_CLASS = cfg.MODEL_CLASS
 
-    # Environment (must match training setup)
+    print(f"Testing {MODEL_CLASS.__name__} Agent")
+    print(f"State: {cfg.STATE_TYPE} | Reward: {cfg.REWARD_TYPE}")
+
+    # Create environment matching training
     base_env = gym.make("Snake-v1")
     env = ModularSnakeWrapper(
         base_env,
-        state_type=state_type,
-        reward_type=reward_type,
+        state_type=cfg.STATE_TYPE,
+        reward_type=cfg.REWARD_TYPE,
     )
 
     print(f"\nLoading model from {model_path}.zip")
@@ -53,15 +60,13 @@ def test_snake_agent(
             ep_reward += reward
             ep_length += 1
 
-            # Food detection should use original env signal
             if info.get("food_eaten", False):
                 food_count += 1
 
-            # If your base env doesn't provide "food_eaten",
-            # fallback to raw reward signal:
-            if reward_type == "dense" and reward == 1000.0:
+            # fallback for reward-based food counting
+            if cfg.REWARD_TYPE == "dense" and reward == 1000.0:
                 food_count += 1
-            elif reward_type == "sparse" and reward == 1.0:
+            elif cfg.REWARD_TYPE == "sparse" and reward == 1.0:
                 food_count += 1
 
             done = terminated or truncated
@@ -97,55 +102,13 @@ def test_snake_agent(
     print(f"  Average Reward:           {avg_reward:.1f}")
 
     env.close()
-
     return results
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--model",
-        type=str,
-        choices=["dqn", "double_dqn", "a2c", "ppo"],
-        default="dqn",
-    )
-
-    parser.add_argument(
-        "--model-path",
-        type=str,
-        default=None,
-    )
-
-    parser.add_argument(
-        "--episodes",
-        type=int,
-        default=20,
-    )
-
-    parser.add_argument(
-        "--state",
-        type=str,
-        choices=["full_grid", "egocentric", "features"],
-        default="full_grid",
-    )
-
-    parser.add_argument(
-        "--reward",
-        type=str,
-        choices=["sparse", "dense"],
-        default="dense",
-    )
-
+    parser.add_argument("--model-path", type=str, default="./models/snake_dqn")
+    parser.add_argument("--episodes", type=int, default=20)
     args = parser.parse_args()
 
-    model_name = args.model
-    model_path = args.model_path if args.model_path else f"./models/snake_{model_name}"
-
-    test_snake_agent(
-        model_name=model_name,
-        model_path=model_path,
-        num_episodes=args.episodes,
-        state_type=args.state,
-        reward_type=args.reward,
-    )
+    test_snake_agent(model_path=args.model_path, num_episodes=args.episodes)
