@@ -5,23 +5,34 @@ import sys
 import gymnasium as gym
 import numpy as np
 
-from rl_snake.wrapper import EnhancedSnakeWrapper
+from rl_snake.wrapper import ModularSnakeWrapper
 from rl_snake.utils import load_model_class
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 # Testing
-def test_snake_agent(model_name: str, model_path: str, num_episodes: int):
+def test_snake_agent(
+    model_name: str,
+    model_path: str,
+    num_episodes: int,
+    state_type: str,
+    reward_type: str,
+):
     print(f"Testing {model_name.upper()} Agent")
+    print(f"State: {state_type} | Reward: {reward_type}")
 
     MODEL_CLASS = load_model_class(model_name)
 
-    # Environment
+    # Environment (must match training setup)
     base_env = gym.make("Snake-v1")
-    env = EnhancedSnakeWrapper(base_env)
+    env = ModularSnakeWrapper(
+        base_env,
+        state_type=state_type,
+        reward_type=reward_type,
+    )
 
-    print(f"\nLoading model from {model_path}.zip.")
+    print(f"\nLoading model from {model_path}.zip")
     model = MODEL_CLASS.load(model_path, env=env)
 
     results = []
@@ -42,7 +53,15 @@ def test_snake_agent(model_name: str, model_path: str, num_episodes: int):
             ep_reward += reward
             ep_length += 1
 
-            if reward > 100:
+            # Food detection should use original env signal
+            if info.get("food_eaten", False):
+                food_count += 1
+
+            # If your base env doesn't provide "food_eaten",
+            # fallback to raw reward signal:
+            if reward_type == "dense" and reward == 1000.0:
+                food_count += 1
+            elif reward_type == "sparse" and reward == 1.0:
                 food_count += 1
 
             done = terminated or truncated
@@ -70,7 +89,7 @@ def test_snake_agent(model_name: str, model_path: str, num_episodes: int):
     max_food = max([r["food"] for r in results])
     min_food = min([r["food"] for r in results])
 
-    print("FINAL TEST RESULTS:")
+    print("\nFINAL TEST RESULTS:")
     print(f"  Average Food per Episode: {avg_food:.2f}")
     print(f"  Maximum Food in Episode:  {max_food}")
     print(f"  Minimum Food in Episode:  {min_food}")
@@ -104,6 +123,20 @@ if __name__ == "__main__":
         default=20,
     )
 
+    parser.add_argument(
+        "--state",
+        type=str,
+        choices=["full_grid", "egocentric", "features"],
+        default="full_grid",
+    )
+
+    parser.add_argument(
+        "--reward",
+        type=str,
+        choices=["sparse", "dense"],
+        default="dense",
+    )
+
     args = parser.parse_args()
 
     model_name = args.model
@@ -113,4 +146,6 @@ if __name__ == "__main__":
         model_name=model_name,
         model_path=model_path,
         num_episodes=args.episodes,
+        state_type=args.state,
+        reward_type=args.reward,
     )

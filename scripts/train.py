@@ -7,16 +7,20 @@ import numpy as np
 
 from stable_baselines3.common.env_util import make_vec_env
 
-from rl_snake.wrapper import EnhancedSnakeWrapper
+from rl_snake.wrapper import ModularSnakeWrapper
 from rl_snake.utils import load_config, TrainingMonitor
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 
 # Environment Factory
-def make_env():
+def make_env(state_type, reward_type):
     base_env = gym.make("Snake-v1")
-    return EnhancedSnakeWrapper(base_env)
+    return ModularSnakeWrapper(
+        base_env,
+        state_type=state_type,
+        reward_type=reward_type,
+    )
 
 
 # Training
@@ -27,6 +31,8 @@ def train(
     use_vec_env: bool,
     tensorboard_log: str,
     n_envs: int,
+    state_type: str,
+    reward_type: str,
 ):
     print(f"\nTraining {model_name.upper()}\n")
 
@@ -35,10 +41,10 @@ def train(
     # Environment creation (using vectorized env for on-policy algorithms)
     if model_name in ["a2c", "ppo"] and use_vec_env:
         print(f"Using vectorized environment ({n_envs} envs)")
-        env = make_vec_env(make_env, n_envs=n_envs)
+        env = make_vec_env(lambda: make_env(state_type, reward_type), n_envs=n_envs)
     else:
         print("Using single environment")
-        env = make_env()
+        env = make_env(state_type, reward_type)
 
     callback = TrainingMonitor(log_interval=100)
 
@@ -96,6 +102,20 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
+        "--state",
+        type=str,
+        choices=["full_grid", "egocentric", "features"],
+        default="full_grid",
+    )
+
+    parser.add_argument(
+        "--reward",
+        type=str,
+        choices=["sparse", "dense"],
+        default="dense",
+    )
+
+    parser.add_argument(
         "--tensorboard-log",
         type=str,
         default=None,
@@ -136,4 +156,6 @@ if __name__ == "__main__":
         use_vec_env=args.use_vec_env,
         tensorboard_log=tensorboard_log,
         n_envs=args.n_envs,
+        state_type=args.state,
+        reward_type=args.reward,
     )
