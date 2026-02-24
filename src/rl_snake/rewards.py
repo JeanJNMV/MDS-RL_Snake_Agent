@@ -1,3 +1,6 @@
+from collections import deque
+
+
 class BaseReward:
     def reset(self):
         pass
@@ -8,69 +11,88 @@ class BaseReward:
 
 # Sparse Reward
 class SparseReward(BaseReward):
+    def __init__(self, food_reward=1.0, death_penalty=-1.0):
+        self.food_reward = food_reward
+        self.death_penalty = death_penalty
+
     def compute(self, reward, terminated, truncated, info, previous_info, steps):
-        if reward > 0:  # food eaten
-            return 1.0
-        if terminated:  # died
-            return -1.0
-        return 0.0
+        total_reward = 0.0
+
+        if reward > 0:
+            total_reward += self.food_reward
+
+        if terminated:
+            total_reward += self.death_penalty
+
+        if truncated:
+            total_reward += self.death_penalty
+
+        return total_reward
 
 
 # Dense Reward
 class DenseReward(BaseReward):
-    def __init__(self):
+    def __init__(
+        self,
+        food_reward=10.0,
+        death_penalty=-10.0,
+        distance_scale=1.0,
+        loop_penalty=-5.0,
+        timeout_penalty=-5.0,
+        loop_window=20,
+        loop_threshold=4,
+    ):
+        self.food_reward = food_reward
+        self.death_penalty = death_penalty
+        self.distance_scale = distance_scale
+        self.loop_penalty = loop_penalty
+        self.timeout_penalty = timeout_penalty
+
+        self.loop_threshold = loop_threshold
+        self.position_history = deque(maxlen=loop_window)
+
         self.previous_distance = None
-        self.position_history = []
 
     def reset(self):
         self.previous_distance = None
-        self.position_history = []
+        self.position_history.clear()
 
     def compute(self, reward, terminated, truncated, info, previous_info, steps):
+        total_reward = 0.0
+
         head = info.get("head")
         food = info.get("food")
 
-        # Loop detection
+        # --- Food ---
+        if reward > 0:
+            total_reward += self.food_reward
+            self.previous_distance = None
+
+        # --- Death ---
+        if terminated:
+            total_reward += self.death_penalty
+
+        # --- Timeout ---
+        if truncated:
+            total_reward += self.timeout_penalty
+
+        # --- Loop detection ---
         if head:
             self.position_history.append(head)
+            if self.position_history.count(head) >= self.loop_threshold:
+                total_reward += self.loop_penalty
 
-            if len(self.position_history) > 20:
-                self.position_history.pop(0)
-
-            if self.position_history.count(head) >= 4:
-                return -50.0
-
-        # Timeout penalty
-        if steps > 1000:
-            return -20.0
-
-        # Reward shaping
-        if reward > 0:
-            self.previous_distance = None
-            return 1000.0
-
-        if terminated:
-            return -10.0
-
+        # --- Distance shaping ---
         if head and food:
             current_distance = abs(head[0] - food[0]) + abs(head[1] - food[1])
 
             if self.previous_distance is not None:
-                distance_change = self.previous_distance - current_distance
-
-                if distance_change > 0:
-                    shaped_reward = 1.0
-                elif distance_change < 0:
-                    shaped_reward = -1.0
-                else:
-                    shaped_reward = -0.1
-            else:
-                shaped_reward = -0.1
+                delta = self.previous_distance - current_distance
+                total_reward += delta * self.distance_scale
 
             self.previous_distance = current_distance
-            return shaped_reward
 
-        return -0.1
+        return total_reward
 
 
 # Factory
