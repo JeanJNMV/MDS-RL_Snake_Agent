@@ -98,7 +98,6 @@ def train(
     print(f"Model saved as '{save_path}.zip'")
 
     if len(callback.episode_rewards) > 0:
-        print(f"Total food eaten: {callback.food_count}")
         print(
             f"Final avg reward (last 100): "
             f"{np.mean(callback.episode_rewards[-100:]):.2f}"

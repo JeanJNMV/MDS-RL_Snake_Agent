@@ -4,11 +4,13 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 
 def load_config(model_name: str):
+    """Dynamically loads the model class and configuration based on the provided model name."""
     module = importlib.import_module(f"configs.{model_name}_config")
     return module.MODEL_CLASS, module.MODEL_CONFIG
 
 
 def load_model_class(model_name: str):
+    """Dynamically loads the model class based on the provided model name."""
     module = importlib.import_module(f"configs.{model_name}_config")
     return module.MODEL_CLASS
 

@@ -4,6 +4,8 @@ import numpy as np
 
 # Base class
 class BaseStateEncoder:
+    """Base class for state encoders in the Snake RL environment."""
+
     def __init__(self):
         self.observation_space = None
 
@@ -13,6 +15,20 @@ class BaseStateEncoder:
 
 # Full grid representation
 class FullGridEncoder(BaseStateEncoder):
+    """
+    FullGridEncoder encodes the full game grid as a flattened observation vector.
+
+    This encoder converts the raw observation (a 16x16x3 grid) into a flattened
+    one-dimensional array of floating-point values suitable for neural network input.
+
+    Attributes:
+        observation_space (gym.spaces.Box): The observation space of shape (768,)
+            with values normalized between 0 and 1 as float32.
+
+    Methods:
+        encode(obs, info): Flattens and converts the observation to float32 format.
+    """
+
     def __init__(self):
         super().__init__()
         self.observation_space = gym.spaces.Box(

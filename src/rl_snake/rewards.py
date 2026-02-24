@@ -2,6 +2,8 @@ from collections import deque
 
 
 class BaseReward:
+    """Base class for reward functions in the Snake RL environment."""
+
     def reset(self):
         pass
 
@@ -11,6 +13,22 @@ class BaseReward:
 
 # Sparse Reward
 class SparseReward(BaseReward):
+    """
+    SparseReward class for computing sparse reward signals in reinforcement learning.
+
+    This reward structure provides minimal feedback to the agent:
+    - Positive reward when food is consumed
+    - Penalty when the agent dies or episode times out
+    - No intermediate rewards for other actions
+
+    Attributes:
+        food_reward (float): Reward value for consuming food. Default is 1.0
+        death_penalty (float): Penalty value for death or timeout. Default is -1.0
+
+    Methods:
+        compute(reward, terminated, truncated, info, previous_info, steps): Calculate the total reward based on game events.
+    """
+
     def __init__(self, food_reward=1.0, death_penalty=-1.0):
         self.food_reward = food_reward
         self.death_penalty = death_penalty
@@ -18,12 +36,15 @@ class SparseReward(BaseReward):
     def compute(self, reward, terminated, truncated, info, previous_info, steps):
         total_reward = 0.0
 
+        # --- Food ---
         if reward > 0:
             total_reward += self.food_reward
 
+        # --- Death ---
         if terminated:
             total_reward += self.death_penalty
 
+        # --- Timeout ---
         if truncated:
             total_reward += self.death_penalty
 
@@ -32,6 +53,29 @@ class SparseReward(BaseReward):
 
 # Dense Reward
 class DenseReward(BaseReward):
+    """
+    DenseReward class for providing dense reward shaping in RL Snake agent.
+
+    This reward structure provides detailed feedback to guide learning:
+    - Positive reward when food is consumed
+    - Penalty when the agent dies or episode times out
+    - Distance-based shaping rewards for moving toward/away from food
+    - Loop detection penalty for repetitive movements
+
+    Attributes:
+        food_reward (float): Reward value for consuming food. Default is 10.0
+        death_penalty (float): Penalty value for death or timeout. Default is -10.0
+        distance_scale (float): Scaling factor for distance-based rewards. Default is 1.0
+        loop_penalty (float): Penalty value for detected loops. Default is -5.0
+        timeout_penalty (float): Penalty value for episode timeouts. Default is -5.0
+        loop_window (int): Size of position history window for loop detection. Default is 20
+        loop_threshold (int): Number of repeated positions before triggering penalty. Default is 4
+
+    Methods:
+        reset(): Clear internal state between episodes.
+        compute(reward, terminated, truncated, info, previous_info, steps): Calculate the total reward based on game events.
+    """
+
     def __init__(
         self,
         food_reward=10.0,

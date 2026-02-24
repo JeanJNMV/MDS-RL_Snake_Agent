@@ -5,6 +5,36 @@ from rl_snake.rewards import get_reward_function
 
 
 class ModularSnakeWrapper(Wrapper):
+    """
+    A modular wrapper for Snake RL environments that encodes observations and shapes rewards.
+
+    This wrapper provides flexible observation encoding and reward shaping for a Snake game
+    environment. It decouples the state representation and reward computation logic from the
+    base environment, allowing for easy experimentation with different state encodings and
+    reward functions.
+
+    Attributes:
+        state_encoder: An encoder instance that transforms raw observations into the desired
+                       state representation format.
+        observation_space: The observation space of the encoded state, as defined by the
+                          state encoder.
+        reward_fn: A reward function instance that computes shaped rewards based on environment
+                  feedback and gameplay information.
+        previous_info: Dictionary containing information from the previous step, used for
+                       computing reward shaping.
+        steps_in_episode: Counter tracking the number of steps taken in the current episode.
+
+    Args:
+        env: The base Gym environment to wrap.
+        state_type (str, optional): The type of state encoding to use. Defaults to "full_grid".
+        reward_type (str, optional): The type of reward shaping function to use. Defaults to "dense".
+
+    Methods:
+        reset: Resets the environment and returns the encoded initial observation.
+        step: Executes an action, applies state encoding and reward shaping, and returns the
+              encoded observation and shaped reward.
+    """
+
     def __init__(self, env, state_type="full_grid", reward_type="dense"):
         super().__init__(env)
 
