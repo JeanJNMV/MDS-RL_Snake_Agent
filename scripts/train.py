@@ -1,7 +1,6 @@
 import argparse
 import os
 import sys
-import json
 
 import gymnasium as gym
 import numpy as np
@@ -29,16 +28,27 @@ def save_training_config(
     save_path, model_class, model_config, state_type, reward_type, use_vec_env, n_envs
 ):
     py_path = save_path + ".py"
+
+    # Check if this model is using the CNN
+    is_cnn = model_config.get("policy") == "CnnPolicy"
+
     with open(py_path, "w") as f:
         f.write("# Auto-generated training configuration\n")
-        # Import the correct class
         f.write(f"from stable_baselines3 import {model_class.__name__}\n\n")
-        f.write(f"MODEL_CLASS = {model_class.__name__}\n\n")
-        f.write("MODEL_CONFIG = " + json.dumps(model_config, indent=4) + "\n")
+
+        f.write(f"MODEL_CLASS = {model_class.__name__}\n")
+        f.write(f"IS_CNN = {is_cnn}\n\n")  # Add a clean boolean flag
+
         f.write(f"STATE_TYPE = '{state_type}'\n")
         f.write(f"REWARD_TYPE = '{reward_type}'\n")
         f.write(f"USE_VEC_ENV = {use_vec_env}\n")
-        f.write(f"N_ENVS = {n_envs}\n")
+        f.write(f"N_ENVS = {n_envs}\n\n")
+
+        # Save the config as comments for human readability only
+        f.write("# Original MODEL_CONFIG hyperparameters:\n")
+        for key, value in model_config.items():
+            f.write(f"# {key}: {value}\n")
+
     print(f"Training configuration saved as '{py_path}'")
 
 
@@ -112,7 +122,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model",
         type=str,
-        choices=["dqn", "double_dqn", "a2c", "ppo"],
+        choices=["dqn", "double_dqn", "a2c", "ppo", "cnn_dqn"],
         default="dqn",
     )
 
@@ -131,7 +141,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--state",
         type=str,
-        choices=["full_grid", "egocentric", "features"],
+        choices=["full_grid", "egocentric", "features", "cnn_full_grid"],
         default="full_grid",
     )
 
@@ -172,6 +182,13 @@ if __name__ == "__main__":
     tensorboard_log = (
         args.tensorboard_log if args.tensorboard_log else f"./logs/{model_name}/"
     )
+
+    # Automatically adjust state type for CNN-based models if not already set to a CNN variant
+    if "cnn" in model_name:
+        if args.state == "features":
+            raise ValueError("CNN-based models cannot use 'features' state type.")
+        if "cnn" not in args.state:
+            args.state = "cnn_" + args.state
 
     os.makedirs("./models", exist_ok=True)
     os.makedirs("./logs", exist_ok=True)

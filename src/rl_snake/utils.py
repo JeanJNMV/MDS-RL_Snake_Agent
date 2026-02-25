@@ -1,3 +1,5 @@
+import os
+import importlib.util
 import importlib
 import numpy as np
 from stable_baselines3.common.callbacks import BaseCallback
@@ -13,6 +15,24 @@ def load_model_class(model_name: str):
     """Dynamically loads the model class based on the provided model name."""
     module = importlib.import_module(f"configs.{model_name}_config")
     return module.MODEL_CLASS
+
+
+def load_training_config(config_path):
+    """Dynamically loads the training configuration from a .py file."""
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Training config file not found: {config_path}")
+
+    spec = importlib.util.spec_from_file_location("training_config", config_path)
+    cfg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(cfg)
+
+    # Use the boolean flag to safely import the CNN
+    if getattr(cfg, "IS_CNN", False):
+        from rl_snake.cnn import CustomSnakeCNN
+
+        cfg.CustomSnakeCNN = CustomSnakeCNN
+
+    return cfg
 
 
 class TrainingMonitor(BaseCallback):

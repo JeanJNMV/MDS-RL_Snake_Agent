@@ -1,5 +1,4 @@
 import argparse
-import importlib.util
 import os
 import sys
 
@@ -7,19 +6,9 @@ import gymnasium as gym
 import numpy as np
 
 from rl_snake.wrapper import ModularSnakeWrapper
+from rl_snake.utils import load_training_config
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-
-# Load training config from a .py file
-def load_training_config(config_path):
-    if not os.path.exists(config_path):
-        raise FileNotFoundError(f"Training config file not found: {config_path}")
-
-    spec = importlib.util.spec_from_file_location("training_config", config_path)
-    cfg = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(cfg)
-    return cfg
 
 
 # Testing

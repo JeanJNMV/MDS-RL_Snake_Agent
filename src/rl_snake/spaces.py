@@ -72,6 +72,26 @@ class FeatureVectorEncoder(BaseStateEncoder):
         pass  # Implement feature extraction (e.g., distance to food, direction to food, etc.)
 
 
+class CnnGridEncoder(BaseStateEncoder):
+    """
+    Keeps the 16x16x3 spatial grid intact for CNN processing.
+    """
+
+    def __init__(self):
+        super().__init__()
+        # Keep the 3D shape: (Height, Width, Channels)
+        self.observation_space = gym.spaces.Box(
+            low=0,
+            high=1,
+            shape=(16, 16, 3),
+            dtype=np.float32,
+        )
+
+    def encode(self, obs, info):
+        # No flattening
+        return obs.astype(np.float32)
+
+
 # Factory
 def get_state_encoder(name: str):
     if name == "full_grid":
@@ -80,5 +100,7 @@ def get_state_encoder(name: str):
         return EgocentricEncoder()
     elif name == "features":
         return FeatureVectorEncoder()
+    elif name == "cnn_full_grid":
+        return CnnGridEncoder()
     else:
         raise ValueError(f"Unknown state type: {name}")
