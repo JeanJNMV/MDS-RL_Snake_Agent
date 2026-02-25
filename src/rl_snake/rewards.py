@@ -36,8 +36,16 @@ class SparseReward(BaseReward):
     def compute(self, reward, terminated, truncated, info, previous_info, steps):
         total_reward = 0.0
 
+        head = info.get("head")
+
         # --- Food ---
-        if reward > 0:
+        food_eaten = False
+        if previous_info is not None:
+            prev_food = previous_info.get("food")
+            if prev_food is not None and head == prev_food:
+                food_eaten = True
+
+        if food_eaten:
             total_reward += self.food_reward
 
         # --- Death ---
@@ -81,7 +89,7 @@ class DenseReward(BaseReward):
         food_reward=10.0,
         death_penalty=-10.0,
         distance_scale=1.0,
-        loop_penalty=-5.0,
+        loop_penalty=-8.0,
         timeout_penalty=-5.0,
         loop_window=20,
         loop_threshold=4,
@@ -108,9 +116,15 @@ class DenseReward(BaseReward):
         food = info.get("food")
 
         # --- Food ---
-        if reward > 0:
+        food_eaten = False
+        if previous_info is not None:
+            prev_food = previous_info.get("food")
+            if prev_food is not None and head == prev_food:
+                food_eaten = True
+
+        if food_eaten:
             total_reward += self.food_reward
-            self.previous_distance = None
+            self.previous_distance = None  # Reset distance shaping after eating
 
         # --- Death ---
         if terminated:

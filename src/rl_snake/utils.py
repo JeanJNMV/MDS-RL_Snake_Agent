@@ -16,36 +16,56 @@ def load_model_class(model_name: str):
 
 
 class TrainingMonitor(BaseCallback):
-    """Simple training progress monitor"""
+    """Training progress monitor with correct food detection."""
 
     def __init__(self, log_interval=100):
         super().__init__()
         self.log_interval = log_interval
+
         self.episode_rewards = []
         self.episode_lengths = []
-        self.food_count = 0
+
+        # Track food per env (supports vec env)
+        self.prev_food_positions = {}
+        self.total_food = 0
 
     def _on_step(self):
-        reward = self.locals.get("rewards", [0])[0]
+        infos = self.locals.get("infos", [])
+        # rewards = self.locals.get("rewards", [])
+        dones = self.locals.get("dones", [])
 
-        if reward > 100:
-            self.food_count += 1
+        for i, info in enumerate(infos):
+            if "head" in info and "food" in info:
+                head_pos = info["head"]
+                food_pos = info["food"]
 
-        if self.locals.get("dones", [False])[0]:
-            info = self.locals["infos"][0]
-            if "episode" in info:
-                self.episode_rewards.append(info["episode"]["r"])
-                self.episode_lengths.append(info["episode"]["l"])
+                # Detect food eaten:
+                # If previous food position exists and head == previous food
+                if i in self.prev_food_positions:
+                    if head_pos == self.prev_food_positions[i]:
+                        self.total_food += 1
 
-                if len(self.episode_rewards) % self.log_interval == 0:
-                    recent_rewards = self.episode_rewards[-self.log_interval :]
-                    recent_lengths = self.episode_lengths[-self.log_interval :]
+                # Update stored food position
+                self.prev_food_positions[i] = food_pos
 
-                    print(
-                        f"Episodes: {len(self.episode_rewards):5d} | "
-                        f"Avg Reward: {np.mean(recent_rewards):7.2f} | "
-                        f"Avg Length: {np.mean(recent_lengths):6.1f} | "
-                        f"Total Food: {self.food_count:5d}",
-                    )
+        # Handle episode end
+        for i, done in enumerate(dones):
+            if done:
+                info = infos[i]
+
+                if "episode" in info:
+                    self.episode_rewards.append(info["episode"]["r"])
+                    self.episode_lengths.append(info["episode"]["l"])
+
+                    if len(self.episode_rewards) % self.log_interval == 0:
+                        recent_rewards = self.episode_rewards[-self.log_interval :]
+                        recent_lengths = self.episode_lengths[-self.log_interval :]
+
+                        print(
+                            f"Episodes: {len(self.episode_rewards):5d} | "
+                            f"Avg Reward: {np.mean(recent_rewards):7.2f} | "
+                            f"Avg Length: {np.mean(recent_lengths):6.1f} | "
+                            f"Total Food: {self.total_food:6d}"
+                        )
 
         return True

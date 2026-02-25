@@ -15,6 +15,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 def load_training_config(config_path):
     if not os.path.exists(config_path):
         raise FileNotFoundError(f"Training config file not found: {config_path}")
+
     spec = importlib.util.spec_from_file_location("training_config", config_path)
     cfg = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(cfg)
@@ -23,12 +24,10 @@ def load_training_config(config_path):
 
 # Testing
 def test_snake_agent(model_path: str, num_episodes: int):
-    # Load config from the corresponding .py file
     cfg = load_training_config(model_path + ".py")
-
     MODEL_CLASS = cfg.MODEL_CLASS
 
-    print(f"Testing {MODEL_CLASS.__name__} Agent")
+    print(f"\nTesting {MODEL_CLASS.__name__} Agent")
     print(f"State: {cfg.STATE_TYPE} | Reward: {cfg.REWARD_TYPE}")
 
     # Create environment matching training
@@ -48,28 +47,29 @@ def test_snake_agent(model_path: str, num_episodes: int):
 
     for episode in range(num_episodes):
         obs, info = env.reset()
-        done = False
-        ep_reward = 0
+
+        terminated = False
+        truncated = False
+
+        ep_reward = 0.0
         ep_length = 0
         food_count = 0
 
-        while not done:
+        while not (terminated or truncated):
+            # Store previous food position BEFORE stepping
+            previous_food = info.get("food")
+
             action, _ = model.predict(obs, deterministic=True)
             obs, reward, terminated, truncated, info = env.step(action)
 
             ep_reward += reward
             ep_length += 1
 
-            if info.get("food_eaten", False):
-                food_count += 1
+            # Food counting
+            current_head = info.get("head")
 
-            # fallback for reward-based food counting
-            if cfg.REWARD_TYPE == "dense" and reward == 1000.0:
+            if previous_food is not None and current_head == previous_food:
                 food_count += 1
-            elif cfg.REWARD_TYPE == "sparse" and reward == 1.0:
-                food_count += 1
-
-            done = terminated or truncated
 
         results.append(
             {
