@@ -6,7 +6,23 @@ from stable_baselines3.common.torch_layers import BaseFeaturesExtractor
 
 class CustomSnakeCNN(BaseFeaturesExtractor):
     """
-    A custom CNN designed to process small 16x16 grids.
+    CustomSnakeCNN - A custom CNN feature extractor for Snake game observations.
+
+    This class extracts features from game observations using a convolutional neural network
+    followed by fully connected layers. It is designed to work with Stable Baselines3 (SB3)
+    and automatically handles the conversion of observation shapes from (Height, Width, Channels)
+    to (Channels, Height, Width) format required by PyTorch.
+
+    Attributes:
+        cnn (nn.Sequential): Sequential module containing convolutional layers and activation functions.
+        linear (nn.Sequential): Sequential module containing a linear layer and ReLU activation.
+
+    Methods:
+        __init__(observation_space, features_dim):
+            Initializes the CustomSnakeCNN with convolutional and linear layers.
+
+        forward(observations):
+            Performs a forward pass through the CNN and linear layers.
     """
 
     def __init__(self, observation_space: gym.spaces.Box, features_dim: int = 256):
