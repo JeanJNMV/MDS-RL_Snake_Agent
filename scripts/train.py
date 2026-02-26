@@ -141,7 +141,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--state",
         type=str,
-        choices=["full_grid", "egocentric", "features", "cnn_full_grid"],
+        choices=[
+            "full_grid",
+            "egocentric",
+            "features",
+            "cnn_full_grid",
+            "cnn_egocentric",
+        ],
         default="full_grid",
     )
 
@@ -162,7 +168,7 @@ if __name__ == "__main__":
         "--use-vec-env",
         action="store_true",
         default=False,
-        help="Use vectorized environment (for A2C/PPO). Default: True",
+        help="Use vectorized environment (for A2C/PPO). Default: False",
     )
 
     parser.add_argument(
