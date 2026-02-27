@@ -145,8 +145,6 @@ if __name__ == "__main__":
             "full_grid",
             "egocentric",
             "features",
-            "cnn_full_grid",
-            "cnn_egocentric",
         ],
         default="full_grid",
     )
@@ -175,7 +173,7 @@ if __name__ == "__main__":
         "--n-envs",
         type=int,
         default=4,
-        help="Number of environments for vectorized training",
+        help="Number of environments for vectorized training (only applies if --use-vec-env is set). Default: 4",
     )
 
     args = parser.parse_args()
@@ -183,13 +181,17 @@ if __name__ == "__main__":
     # Default Paths
     model_name = args.model
 
-    save_path = args.save_path if args.save_path else f"./models/snake_{model_name}"
+    save_path = (
+        args.save_path
+        if args.save_path
+        else f"./models/{model_name}_{args.state}_{args.reward}"
+    )
 
     tensorboard_log = (
         args.tensorboard_log if args.tensorboard_log else f"./logs/{model_name}/"
     )
 
-    # Automatically adjust state type for CNN-based models if not already set to a CNN variant
+    # Automatically adjust state type for CNN-based models
     if "cnn" in model_name:
         if args.state == "features":
             raise ValueError("CNN-based models cannot use 'features' state type.")

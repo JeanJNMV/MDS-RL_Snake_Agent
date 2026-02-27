@@ -96,7 +96,9 @@ def test_snake_agent(model_path: str, num_episodes: int):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model-path", type=str, default="./models/snake_dqn")
+    parser.add_argument(
+        "--model-path", type=str, default="./models/dqn_full_grid_dense"
+    )
     parser.add_argument("--episodes", type=int, default=20)
     args = parser.parse_args()
 

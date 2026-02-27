@@ -89,8 +89,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--model-path",
         type=str,
-        default="./models/snake_dqn",
-        help="Path to the trained model (without .zip extension)",
+        default="./models/dqn_full_grid_dense",
+        help="Path to the trained model (without .zip or .py extension)",
     )
 
     parser.add_argument(
