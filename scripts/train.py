@@ -1,213 +1,124 @@
-import argparse
-import os
-import sys
+import logging
 
 import gymnasium as gym
-import numpy as np
+import hydra
+from hydra.utils import instantiate
+from omegaconf import DictConfig
 
-from stable_baselines3.common.env_util import make_vec_env
+from rl_snake.agents import BaseAgent
+from rl_snake.rewards import BaseReward
+from rl_snake.spaces import BaseStateEncoder
 
-from rl_snake.wrapper import ModularSnakeWrapper
-from rl_snake.utils import load_config, TrainingMonitor
-
-sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+logger = logging.getLogger(__name__)
 
 
-# Environment Factory
-def make_env(state_type, reward_type):
-    base_env = gym.make("Snake-v1")
-    return ModularSnakeWrapper(
-        base_env,
-        state_type=state_type,
-        reward_type=reward_type,
+@hydra.main(version_base=None, config_path="../conf", config_name="train")
+def main(cfg: DictConfig) -> None:
+    log_level = cfg.get("log_level", "INFO")
+    logging.basicConfig(
+        level=getattr(logging, str(log_level).upper()),
+        format="%(message)s",
+        force=True,
     )
 
+    env = gym.make("Snake-v1")
 
-# Save configuration alongside model
-def save_training_config(
-    save_path, model_class, model_config, state_type, reward_type, use_vec_env, n_envs
-):
-    py_path = save_path + ".py"
+    agent: BaseAgent = instantiate(cfg.agent)
+    encoder: BaseStateEncoder = instantiate(cfg.encoder)
+    reward_wrapper: BaseReward = instantiate(cfg.reward)
 
-    # Check if this model is using the CNN
-    is_cnn = model_config.get("policy") == "CnnPolicy"
+    shaped_episode_rewards = []
+    raw_episode_rewards = []
+    episode_lengths = []
 
-    with open(py_path, "w") as f:
-        f.write("# Auto-generated training configuration\n")
-        f.write(f"from stable_baselines3 import {model_class.__name__}\n\n")
+    for episode in range(cfg.episodes):
+        if cfg.seed is None:
+            obs, info = env.reset()
+        else:
+            obs, info = env.reset(seed=cfg.seed + episode)
 
-        f.write(f"MODEL_CLASS = {model_class.__name__}\n")
-        f.write(f"IS_CNN = {is_cnn}\n\n")  # Add a clean boolean flag
+        reward_wrapper.reset()
 
-        f.write(f"STATE_TYPE = '{state_type}'\n")
-        f.write(f"REWARD_TYPE = '{reward_type}'\n")
-        f.write(f"USE_VEC_ENV = {use_vec_env}\n")
-        f.write(f"N_ENVS = {n_envs}\n\n")
+        state = encoder.encode(obs, info)
 
-        # Save the config as comments for human readability only
-        f.write("# Original MODEL_CONFIG hyperparameters:\n")
-        for key, value in model_config.items():
-            f.write(f"# {key}: {value}\n")
+        done = False
+        shaped_episode_reward = 0.0
+        raw_episode_reward = 0.0
+        steps = 0
 
-    print(f"Training configuration saved as '{py_path}'")
+        while not done:
+            action = agent.choose_action(state)
 
+            next_obs, raw_reward, terminated, truncated, next_info = env.step(action)
+            next_state = encoder.encode(next_obs, next_info)
 
-# Training
-def train(
-    model_name: str,
-    timesteps: int,
-    save_path: str,
-    use_vec_env: bool,
-    tensorboard_log: str,
-    n_envs: int,
-    state_type: str,
-    reward_type: str,
-):
-    print(f"\nTraining {model_name.upper()}\n")
+            shaped_reward = reward_wrapper.compute(
+                state=state,
+                action=action,
+                next_state=next_state,
+                raw_reward=raw_reward,
+                terminated=terminated,
+                truncated=truncated,
+                info=next_info,
+            )
 
-    MODEL_CLASS, MODEL_CONFIG = load_config(model_name)
+            done = terminated or truncated
 
-    # Environment creation (using vectorized env for on-policy algorithms)
-    if model_name in ["a2c", "ppo"] and use_vec_env:
-        print(f"Using vectorized environment ({n_envs} envs)")
-        env = make_vec_env(lambda: make_env(state_type, reward_type), n_envs=n_envs)
-    else:
-        print("Using single environment")
-        env = make_env(state_type, reward_type)
+            agent.update(
+                state=state,
+                action=action,
+                reward=shaped_reward,
+                next_state=next_state,
+                done=done,
+            )
 
-    callback = TrainingMonitor(log_interval=100)
+            state = next_state
+            shaped_episode_reward += float(shaped_reward)
+            raw_episode_reward += float(raw_reward)
+            steps += 1
 
-    # Create model
-    model = MODEL_CLASS(
-        env=env,
-        tensorboard_log=tensorboard_log,
-        **MODEL_CONFIG,
-    )
+        shaped_episode_rewards.append(shaped_episode_reward)
+        raw_episode_rewards.append(raw_episode_reward)
+        episode_lengths.append(steps)
 
-    print(f"TensorBoard logs: {tensorboard_log}")
-    print(f"Training for {timesteps:,} steps\n")
+        if (episode + 1) % cfg.log_every == 0:
+            mean_shaped_reward = (
+                sum(shaped_episode_rewards[-cfg.log_every :]) / cfg.log_every
+            )
+            mean_raw_reward = sum(raw_episode_rewards[-cfg.log_every :]) / cfg.log_every
+            mean_steps = sum(episode_lengths[-cfg.log_every :]) / cfg.log_every
+            logger.info(
+                "Episode %4d/%d | Avg Raw Reward (%d ep): %8.3f | Avg Shaped Reward (%d ep): %8.3f | Avg Steps (%d ep): %6.1f",
+                episode + 1,
+                cfg.episodes,
+                cfg.log_every,
+                mean_raw_reward,
+                cfg.log_every,
+                mean_shaped_reward,
+                cfg.log_every,
+                mean_steps,
+            )
 
-    model.learn(
-        total_timesteps=timesteps,
-        callback=callback,
-        progress_bar=True,
-    )
-
-    model.save(save_path)
-    save_training_config(
-        save_path,
-        MODEL_CLASS,
-        MODEL_CONFIG,
-        state_type,
-        reward_type,
-        use_vec_env,
-        n_envs,
-    )
-
-    print("\nTraining complete!")
-    print(f"Model saved as '{save_path}.zip'")
-
-    if len(callback.episode_rewards) > 0:
-        print(
-            f"Final avg reward (last 100): "
-            f"{np.mean(callback.episode_rewards[-100:]):.2f}"
+    if shaped_episode_rewards:
+        overall_shaped_reward = sum(shaped_episode_rewards) / len(
+            shaped_episode_rewards
         )
+        overall_raw_reward = sum(raw_episode_rewards) / len(raw_episode_rewards)
+        overall_steps = sum(episode_lengths) / len(episode_lengths)
+        logger.info(
+            "Training complete | Episodes: %d | Mean Raw Reward: %8.3f | Mean Shaped Reward: %8.3f | Mean Steps: %6.1f",
+            len(shaped_episode_rewards),
+            overall_raw_reward,
+            overall_shaped_reward,
+            overall_steps,
+        )
+
+    if cfg.save.enabled:
+        agent.save(cfg.save.path)
+        logger.info("Agent saved to %s", cfg.save.path)
 
     env.close()
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--model",
-        type=str,
-        choices=["dqn", "double_dqn", "a2c", "ppo", "cnn_dqn"],
-        default="dqn",
-    )
-
-    parser.add_argument(
-        "--timesteps",
-        type=int,
-        default=1_000_000,
-    )
-
-    parser.add_argument(
-        "--save-path",
-        type=str,
-        default=None,
-    )
-
-    parser.add_argument(
-        "--state",
-        type=str,
-        choices=[
-            "full_grid",
-            "egocentric",
-            "features",
-        ],
-        default="full_grid",
-    )
-
-    parser.add_argument(
-        "--reward",
-        type=str,
-        choices=["sparse", "dense"],
-        default="dense",
-    )
-
-    parser.add_argument(
-        "--tensorboard-log",
-        type=str,
-        default=None,
-    )
-
-    parser.add_argument(
-        "--use-vec-env",
-        action="store_true",
-        default=False,
-        help="Use vectorized environment (for A2C/PPO). Default: False",
-    )
-
-    parser.add_argument(
-        "--n-envs",
-        type=int,
-        default=4,
-        help="Number of environments for vectorized training (only applies if --use-vec-env is set). Default: 4",
-    )
-
-    args = parser.parse_args()
-
-    # Default Paths
-    model_name = args.model
-
-    save_path = (
-        args.save_path
-        if args.save_path
-        else f"./models/{model_name}_{args.state}_{args.reward}"
-    )
-
-    tensorboard_log = (
-        args.tensorboard_log if args.tensorboard_log else f"./logs/{model_name}/"
-    )
-
-    # Automatically adjust state type for CNN-based models
-    if "cnn" in model_name:
-        if args.state == "features":
-            raise ValueError("CNN-based models cannot use 'features' state type.")
-        if "cnn" not in args.state:
-            args.state = "cnn_" + args.state
-
-    os.makedirs("./models", exist_ok=True)
-    os.makedirs("./logs", exist_ok=True)
-
-    train(
-        model_name=model_name,
-        timesteps=args.timesteps,
-        save_path=save_path,
-        use_vec_env=args.use_vec_env,
-        tensorboard_log=tensorboard_log,
-        n_envs=args.n_envs,
-        state_type=args.state,
-        reward_type=args.reward,
-    )
+    main()

@@ -1,0 +1,17 @@
+defaults:
+  - _self_
+  - agent: random
+  - encoder: full
+  - reward: id
+  
+episodes: 1000
+log_every: 10
+seed: null
+save:
+  enabled: false
+  path: models/agent.pkl
+
+
+hydra:  
+  run:  
+    dir: ./logs/${agent}_${encoder}
