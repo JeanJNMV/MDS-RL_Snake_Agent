@@ -21,7 +21,6 @@ def main(cfg: DictConfig) -> None:
         reward_wrapper=reward_wrapper,
         seed=cfg.get("seed", None),
         train=False,
-        max_iterations=cfg.get("episode_max_iterations", None),
     )
 
     print(

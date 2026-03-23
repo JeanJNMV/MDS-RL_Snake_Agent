@@ -1,5 +1,6 @@
 import pickle
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 
@@ -19,7 +20,26 @@ class BaseAgent:
         raise NotImplementedError
 
     def save(self, path: str) -> None:
-        pass
+        raise NotImplementedError
+
+    @classmethod
+    def load(cls, path: str) -> "BaseAgent":
+        with open(path, "rb") as f:
+            payload = pickle.load(f)
+
+        agent_type = payload.get("agent_type")
+        if agent_type == "random":
+            return RandomAgent.from_payload(payload)
+        if agent_type == "q_learning":
+            return QLearningAgent.from_payload(payload)
+
+        raise ValueError(f"Unsupported agent type in checkpoint: {agent_type}")
+
+    @staticmethod
+    def _write_payload(path: str, payload: dict) -> None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "wb") as f:
+            pickle.dump(payload, f)
 
 
 class RandomAgent(BaseAgent):
@@ -38,6 +58,19 @@ class RandomAgent(BaseAgent):
         done: bool,
     ) -> None:
         pass
+
+    def save(self, path: str) -> None:
+        self._write_payload(
+            path,
+            {
+                "agent_type": "random",
+                "n_actions": self.n_actions,
+            },
+        )
+
+    @classmethod
+    def from_payload(cls, payload: dict) -> "RandomAgent":
+        return cls(n_actions=payload["n_actions"])
 
 
 class QLearningAgent(BaseAgent):
@@ -98,6 +131,7 @@ class QLearningAgent(BaseAgent):
 
     def save(self, path: str) -> None:
         payload = {
+            "agent_type": "q_learning",
             "n_actions": self.n_actions,
             "alpha": self.alpha,
             "gamma": self.gamma,
@@ -107,14 +141,10 @@ class QLearningAgent(BaseAgent):
             "state_round_decimals": self.state_round_decimals,
             "q_table": dict(self.q_table),
         }
-        with open(path, "wb") as f:
-            pickle.dump(payload, f)
+        self._write_payload(path, payload)
 
     @classmethod
-    def load(cls, path: str) -> "QLearningAgent":
-        with open(path, "rb") as f:
-            payload = pickle.load(f)
-
+    def from_payload(cls, payload: dict) -> "QLearningAgent":
         agent = cls(
             n_actions=payload["n_actions"],
             alpha=payload["alpha"],

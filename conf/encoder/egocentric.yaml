@@ -1,0 +1,2 @@
+_target_: rl_snake.states.EgocentricEncoder
+window_radius: 3
