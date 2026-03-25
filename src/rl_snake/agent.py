@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import random
 from abc import ABC, abstractmethod
 from collections import deque
@@ -10,11 +11,12 @@ from torch import nn, optim
 
 from rl_snake.env import DOWN, LEFT, RIGHT, UP, SnakeEnv
 
+# ---------------------------------------------------------------------------
 # State extraction
+# ---------------------------------------------------------------------------
 
 _TURN_RIGHT = {UP: RIGHT, RIGHT: DOWN, DOWN: LEFT, LEFT: UP}
 _TURN_LEFT = {UP: LEFT, RIGHT: UP, DOWN: RIGHT, LEFT: DOWN}
-
 _DELTA = {UP: (-1, 0), RIGHT: (0, 1), DOWN: (1, 0), LEFT: (0, -1)}
 
 
@@ -75,7 +77,27 @@ def get_state(env: SnakeEnv) -> np.ndarray:
     )
 
 
-#  Replay Buffer
+def get_grid_state(env: SnakeEnv) -> np.ndarray:
+    """Return the full grid as a 4-channel binary float array (C, H, W).
+
+    Channels:
+        0 = snake body
+        1 = snake head
+        2 = food
+        3 = obstacles
+    """
+    obs = env._get_observation()  # (H, W) with values 0-4
+    grid = np.zeros((4, env.height, env.width), dtype=np.float32)
+    grid[0] = obs == 1  # body
+    grid[1] = obs == 2  # head
+    grid[2] = obs == 3  # food
+    grid[3] = obs == 4  # obstacle
+    return grid
+
+
+# ---------------------------------------------------------------------------
+# Replay Buffer
+# ---------------------------------------------------------------------------
 
 
 class ReplayBuffer:
@@ -107,7 +129,9 @@ class ReplayBuffer:
         return len(self._buf)
 
 
+# ---------------------------------------------------------------------------
 # Base Agent
+# ---------------------------------------------------------------------------
 
 
 class BaseAgent(ABC):
@@ -134,7 +158,9 @@ class BaseAgent(ABC):
         raise NotImplementedError
 
 
-# Q-Network
+# ---------------------------------------------------------------------------
+# Networks
+# ---------------------------------------------------------------------------
 
 
 class _QNetwork(nn.Module):
@@ -152,25 +178,68 @@ class _QNetwork(nn.Module):
         return self.net(x)
 
 
-# DQN Agent
-
-
-class DQNAgent(BaseAgent):
-    N_ACTIONS = 4
-    STATE_DIM = 11
+class _CNNQNetwork(nn.Module):
+    """CNN Q-network that operates on the full grid observation (4-channel binary image)."""
 
     def __init__(
         self,
-        lr: float = 1e-3,
-        gamma: float = 0.99,
-        epsilon_start: float = 1.0,
-        epsilon_end: float = 0.01,
-        epsilon_decay: float = 0.995,
-        batch_size: int = 64,
-        buffer_capacity: int = 100_000,
-        target_update_freq: int = 1_000,
-        hidden: tuple[int, ...] = (256, 128),
-        device: str | None = None,
+        height: int,
+        width: int,
+        n_actions: int,
+        conv_channels: tuple[int, ...] = (32, 64),
+        hidden: tuple[int, ...] = (512,),
+    ) -> None:
+        super().__init__()
+        conv_layers: list[nn.Module] = []
+        in_ch = 4  # body, head, food, obstacle
+        for ch in conv_channels:
+            conv_layers += [nn.Conv2d(in_ch, ch, kernel_size=3, padding=1), nn.ReLU()]
+            in_ch = ch
+        self.conv = nn.Sequential(*conv_layers)
+
+        fc_in = in_ch * height * width
+        fc_layers: list[nn.Module] = []
+        in_dim = fc_in
+        for h in hidden:
+            fc_layers += [nn.Linear(in_dim, h), nn.ReLU()]
+            in_dim = h
+        fc_layers.append(nn.Linear(in_dim, n_actions))
+        self.fc = nn.Sequential(*fc_layers)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = self.conv(x)
+        x = x.flatten(1)
+        return self.fc(x)
+
+
+# ---------------------------------------------------------------------------
+# Shared DQN logic
+# ---------------------------------------------------------------------------
+
+_OPTIMIZERS = {
+    "adam": optim.Adam,
+    "rmsprop": optim.RMSprop,
+}
+
+
+class _BaseDQNAgent(BaseAgent):
+    """Shared DQN training logic. Subclasses provide the Q-network architecture."""
+
+    N_ACTIONS = 4
+
+    def __init__(
+        self,
+        q_net: nn.Module,
+        lr: float,
+        gamma: float,
+        epsilon_start: float,
+        epsilon_end: float,
+        epsilon_decay: float,
+        batch_size: int,
+        buffer_capacity: int,
+        target_update_freq: int,
+        optimizer_name: str,
+        device: torch.device,
     ) -> None:
         self.gamma = gamma
         self.epsilon = epsilon_start
@@ -178,18 +247,20 @@ class DQNAgent(BaseAgent):
         self.epsilon_decay = epsilon_decay
         self.batch_size = batch_size
         self.target_update_freq = target_update_freq
-        self.device = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        self.device = device
 
-        self.q_net = _QNetwork(self.STATE_DIM, self.N_ACTIONS, hidden).to(self.device)
-        self.target_net = _QNetwork(self.STATE_DIM, self.N_ACTIONS, hidden).to(self.device)
-        self.target_net.load_state_dict(self.q_net.state_dict())
+        self.q_net = q_net
+        self.target_net = copy.deepcopy(q_net)
         self.target_net.eval()
 
-        self.optimizer = optim.Adam(self.q_net.parameters(), lr=lr)
+        optimizer_cls = _OPTIMIZERS.get(optimizer_name)
+        if optimizer_cls is None:
+            msg = f"Unknown optimizer '{optimizer_name}'. Choose from: {list(_OPTIMIZERS)}"
+            raise ValueError(msg)
+        self.optimizer = optimizer_cls(self.q_net.parameters(), lr=lr)
+
         self.buffer = ReplayBuffer(buffer_capacity)
         self._steps = 0
-
-    # BaseAgent interface
 
     def select_action(self, state: np.ndarray) -> int:
         if random.random() < self.epsilon:
@@ -239,8 +310,6 @@ class DQNAgent(BaseAgent):
 
         return loss.item()
 
-    # Persistence
-
     def save(self, path: str) -> None:
         torch.save(
             {
@@ -260,3 +329,81 @@ class DQNAgent(BaseAgent):
         self.optimizer.load_state_dict(ckpt["optimizer"])
         self.epsilon = ckpt["epsilon"]
         self._steps = ckpt["steps"]
+
+
+# ---------------------------------------------------------------------------
+# Concrete agents
+# ---------------------------------------------------------------------------
+
+
+class DQNAgent(_BaseDQNAgent):
+    """DQN agent with a fully-connected MLP operating on the 11-feature state vector."""
+
+    STATE_DIM = 11
+
+    def __init__(
+        self,
+        lr: float = 1e-3,
+        gamma: float = 0.99,
+        epsilon_start: float = 1.0,
+        epsilon_end: float = 0.01,
+        epsilon_decay: float = 0.995,
+        batch_size: int = 64,
+        buffer_capacity: int = 100_000,
+        target_update_freq: int = 1_000,
+        hidden: tuple[int, ...] = (256, 128),
+        optimizer_name: str = "adam",
+        device: str | None = None,
+    ) -> None:
+        dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        q_net = _QNetwork(self.STATE_DIM, self.N_ACTIONS, hidden).to(dev)
+        super().__init__(
+            q_net=q_net,
+            lr=lr,
+            gamma=gamma,
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            epsilon_decay=epsilon_decay,
+            batch_size=batch_size,
+            buffer_capacity=buffer_capacity,
+            target_update_freq=target_update_freq,
+            optimizer_name=optimizer_name,
+            device=dev,
+        )
+
+
+class CNNDQNAgent(_BaseDQNAgent):
+    """DQN agent with a CNN operating on the full 4-channel grid observation."""
+
+    def __init__(
+        self,
+        height: int,
+        width: int,
+        lr: float = 1e-3,
+        gamma: float = 0.99,
+        epsilon_start: float = 1.0,
+        epsilon_end: float = 0.01,
+        epsilon_decay: float = 0.995,
+        batch_size: int = 64,
+        buffer_capacity: int = 100_000,
+        target_update_freq: int = 1_000,
+        conv_channels: tuple[int, ...] = (32, 64),
+        hidden: tuple[int, ...] = (512,),
+        optimizer_name: str = "adam",
+        device: str | None = None,
+    ) -> None:
+        dev = torch.device(device or ("cuda" if torch.cuda.is_available() else "cpu"))
+        q_net = _CNNQNetwork(height, width, self.N_ACTIONS, conv_channels, hidden).to(dev)
+        super().__init__(
+            q_net=q_net,
+            lr=lr,
+            gamma=gamma,
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            epsilon_decay=epsilon_decay,
+            batch_size=batch_size,
+            buffer_capacity=buffer_capacity,
+            target_update_freq=target_update_freq,
+            optimizer_name=optimizer_name,
+            device=dev,
+        )

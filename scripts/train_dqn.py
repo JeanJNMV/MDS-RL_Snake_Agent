@@ -8,7 +8,7 @@ from pathlib import Path
 import numpy as np
 
 import wandb
-from rl_snake.agent import DQNAgent, get_state
+from rl_snake.agent import CNNDQNAgent, DQNAgent, get_grid_state, get_state
 from rl_snake.env import SnakeEnv
 
 
@@ -22,6 +22,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--food-reward", type=float, default=10.0)
     p.add_argument("--death-reward", type=float, default=-10.0)
     p.add_argument("--step-reward", type=float, default=0)
+    p.add_argument(
+        "--distance-reward-scale",
+        type=float,
+        default=0.0,
+        help="Scale for potential-based Manhattan distance reward shaping (0 = disabled)",
+    )
 
     # Agent
     p.add_argument("--lr", type=float, default=1e-3)
@@ -38,6 +44,21 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--save-dir", type=str, default="checkpoints")
     p.add_argument("--save-every", type=int, default=500)
+
+    # Agent type
+    p.add_argument(
+        "--agent-type",
+        type=str,
+        default="mlp",
+        choices=["mlp", "cnn"],
+        help="mlp: 11-feature DQN; cnn: full-grid CNN-DQN",
+    )
+    p.add_argument(
+        "--optimizer",
+        type=str,
+        default="adam",
+        choices=["adam", "rmsprop"],
+    )
 
     # W&B
     p.add_argument("--wandb-project", type=str, default="rl-snake")
@@ -62,33 +83,52 @@ def train(args: argparse.Namespace) -> None:
         food_reward=args.food_reward,
         death_reward=args.death_reward,
         step_reward=args.step_reward,
+        distance_reward_scale=args.distance_reward_scale,
         max_steps=args.max_steps,
     )
 
-    agent = DQNAgent(
-        lr=args.lr,
-        gamma=args.gamma,
-        epsilon_start=args.epsilon_start,
-        epsilon_end=args.epsilon_end,
-        epsilon_decay=args.epsilon_decay,
-        batch_size=args.batch_size,
-        buffer_capacity=args.buffer_capacity,
-        target_update_freq=args.target_update,
-    )
+    if args.agent_type == "cnn":
+        agent = CNNDQNAgent(
+            height=args.height,
+            width=args.width,
+            lr=args.lr,
+            gamma=args.gamma,
+            epsilon_start=args.epsilon_start,
+            epsilon_end=args.epsilon_end,
+            epsilon_decay=args.epsilon_decay,
+            batch_size=args.batch_size,
+            buffer_capacity=args.buffer_capacity,
+            target_update_freq=args.target_update,
+            optimizer_name=args.optimizer,
+        )
+        extract_state = get_grid_state
+    else:
+        agent = DQNAgent(
+            lr=args.lr,
+            gamma=args.gamma,
+            epsilon_start=args.epsilon_start,
+            epsilon_end=args.epsilon_end,
+            epsilon_decay=args.epsilon_decay,
+            batch_size=args.batch_size,
+            buffer_capacity=args.buffer_capacity,
+            target_update_freq=args.target_update,
+            optimizer_name=args.optimizer,
+        )
+        extract_state = get_state
 
     save_dir = Path(args.save_dir)
     save_dir.mkdir(parents=True, exist_ok=True)
 
     for episode in range(1, args.episodes + 1):
         env.reset()
-        state = get_state(env)
+        state = extract_state(env)
         total_reward = 0.0
         episode_losses: list[float] = []
 
         while not env.done:
             action = agent.select_action(state)
             result = env.step(action)
-            next_state = get_state(env)
+            next_state = extract_state(env)
 
             agent.store_transition(state, action, result.reward, next_state, result.done)
             loss = agent.learn()
@@ -102,23 +142,23 @@ def train(args: argparse.Namespace) -> None:
         wandb.log(
             {
                 "episode": episode,
-                "score": env.score,
+                "length": env.length,
                 "total_reward": total_reward,
                 "steps": env.steps,
                 "epsilon": agent.epsilon,
                 "loss": float(np.mean(episode_losses)) if episode_losses else None,
-            }
+            },
         )
 
         if episode % args.save_every == 0:
-            ckpt_path = save_dir / f"dqn_ep{episode}.pt"
+            ckpt_path = save_dir / f"{args.agent_type}_ep{episode}.pt"
             agent.save(str(ckpt_path))
             wandb.save(str(ckpt_path))
             print(
-                f"[{episode}/{args.episodes}]  score={env.score}  ε={agent.epsilon:.3f}  saved → {ckpt_path}"
+                f"[{episode}/{args.episodes}]  length={env.length}  ε={agent.epsilon:.3f}  saved → {ckpt_path}",
             )
 
-    final_path = save_dir / "dqn_final.pt"
+    final_path = save_dir / f"{args.agent_type}_final.pt"
     agent.save(str(final_path))
     wandb.save(str(final_path))
     wandb.finish()
