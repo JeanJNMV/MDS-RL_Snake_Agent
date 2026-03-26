@@ -17,3 +17,4 @@ wandb
 debug*
 models/
 checkpoints
+deliverables/poster/*
