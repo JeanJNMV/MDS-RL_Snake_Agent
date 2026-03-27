@@ -1,13 +1,3 @@
-"""Evaluate the adaptability of a trained Snake agent across environment configs.
-
-Run via:
-    uv run python -m rl_snake.evaluate --checkpoint <path.pt> --agent-type mlp|cnn|window-cnn
-
-The script runs the agent zero-shot on 6 progressively harder environments and
-computes an *adaptability score*: mean normalized reward across non-baseline configs
-relative to the baseline (1.0 = equally good everywhere, <1.0 = degrades on harder envs).
-"""
-
 from __future__ import annotations
 
 import argparse
@@ -16,15 +6,15 @@ from functools import partial
 from pathlib import Path
 
 import numpy as np
-import wandb
 
+import wandb
 from rl_snake.agent import CNNDQNAgent, DQNAgent, FrameStack, get_grid_state, get_state, get_window_state
 from rl_snake.env import SnakeEnv
-
 
 # ---------------------------------------------------------------------------
 # Test configurations
 # ---------------------------------------------------------------------------
+
 
 def get_test_configs(height: int, width: int) -> list[dict]:
     base = dict(height=height, width=width, max_steps=500)
@@ -72,6 +62,7 @@ def get_test_configs(height: int, width: int) -> list[dict]:
 # ---------------------------------------------------------------------------
 # Agent loading
 # ---------------------------------------------------------------------------
+
 
 def load_agent(
     checkpoint: str,
@@ -142,6 +133,7 @@ def _infer_n_frames(agent: DQNAgent | CNNDQNAgent) -> int:
 # Rollout
 # ---------------------------------------------------------------------------
 
+
 def run_config(
     config: dict,
     agent: DQNAgent | CNNDQNAgent,
@@ -167,13 +159,15 @@ def run_config(
             state = frame_stack.step(env)
             total_reward += result.reward
 
-        results.append(dict(
-            length=env.length,
-            total_reward=total_reward,
-            steps=env.steps,
-            foods_eaten=env.length - init_length,
-            death=env.steps < max_steps,  # True = died before timeout
-        ))
+        results.append(
+            dict(
+                length=env.length,
+                total_reward=total_reward,
+                steps=env.steps,
+                foods_eaten=env.length - init_length,
+                death=env.steps < max_steps,  # True = died before timeout
+            ),
+        )
 
     return results
 
@@ -181,6 +175,7 @@ def run_config(
 # ---------------------------------------------------------------------------
 # Aggregation
 # ---------------------------------------------------------------------------
+
 
 def aggregate(config: dict, results: list[dict]) -> dict:
     lengths = [r["length"] for r in results]
@@ -220,6 +215,7 @@ def compute_adaptability_score(all_metrics: list[dict]) -> float:
 # Output
 # ---------------------------------------------------------------------------
 
+
 def print_summary(all_metrics: list[dict], adaptability_score: float) -> None:
     print("\n" + "=" * 76)
     print("ADAPTABILITY EVALUATION RESULTS")
@@ -229,7 +225,7 @@ def print_summary(all_metrics: list[dict], adaptability_score: float) -> None:
     for m in all_metrics:
         print(
             f"{m['name']:<22} {m['mean_length']:>8.2f} {m['mean_reward']:>10.3f}"
-            f" {m['death_rate']:>10.2%} {m['mean_foods']:>7.2f}"
+            f" {m['death_rate']:>10.2%} {m['mean_foods']:>7.2f}",
         )
     print("=" * 76)
     print(f"Adaptability Score: {adaptability_score:.4f}")
@@ -252,15 +248,29 @@ def log_to_wandb(
     wandb.summary["checkpoint"] = checkpoint
 
     columns = [
-        "config", "description", "mean_length", "std_length",
-        "mean_reward", "std_reward", "mean_steps", "mean_foods",
-        "death_rate", "n_episodes",
+        "config",
+        "description",
+        "mean_length",
+        "std_length",
+        "mean_reward",
+        "std_reward",
+        "mean_steps",
+        "mean_foods",
+        "death_rate",
+        "n_episodes",
     ]
     rows = [
         [
-            m["name"], m["description"], m["mean_length"], m["std_length"],
-            m["mean_reward"], m["std_reward"], m["mean_steps"], m["mean_foods"],
-            m["death_rate"], m["n_episodes"],
+            m["name"],
+            m["description"],
+            m["mean_length"],
+            m["std_length"],
+            m["mean_reward"],
+            m["std_reward"],
+            m["mean_steps"],
+            m["mean_foods"],
+            m["death_rate"],
+            m["n_episodes"],
         ]
         for m in all_metrics
     ]
@@ -273,12 +283,16 @@ def log_to_wandb(
 # CLI
 # ---------------------------------------------------------------------------
 
+
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Evaluate adaptability of a trained Snake agent")
     p.add_argument("--checkpoint", type=str, required=True, help="Path to .pt checkpoint")
     p.add_argument(
-        "--agent-type", type=str, default="mlp", choices=["mlp", "cnn", "window-cnn"],
-        help="Agent architecture (must match training)"
+        "--agent-type",
+        type=str,
+        default="mlp",
+        choices=["mlp", "cnn", "window-cnn"],
+        help="Agent architecture (must match training)",
     )
     p.add_argument("--episodes-per-config", type=int, default=100)
     p.add_argument("--height", type=int, default=10)
@@ -294,8 +308,12 @@ def parse_args() -> argparse.Namespace:
 
 def evaluate(args: argparse.Namespace) -> None:
     agent, state_fn = load_agent(
-        args.checkpoint, args.agent_type, args.height, args.width,
-        window_size=args.window_size, device=args.device,
+        args.checkpoint,
+        args.agent_type,
+        args.height,
+        args.width,
+        window_size=args.window_size,
+        device=args.device,
     )
     n_frames = _infer_n_frames(agent)
 
@@ -310,7 +328,7 @@ def evaluate(args: argparse.Namespace) -> None:
         print(
             f"  mean_reward={metrics['mean_reward']:.3f}  "
             f"death_rate={metrics['death_rate']:.1%}  "
-            f"mean_length={metrics['mean_length']:.1f}"
+            f"mean_length={metrics['mean_length']:.1f}",
         )
 
     adaptability_score = compute_adaptability_score(all_metrics)

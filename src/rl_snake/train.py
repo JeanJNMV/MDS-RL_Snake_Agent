@@ -1,25 +1,18 @@
-"""Train a DQN agent on the Snake environment.
-
-Run via:
-    python -m rl_snake.train [args]
-"""
-
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
-
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 
 import wandb
 from rl_snake.agent import CNNDQNAgent, DQNAgent, FrameStack, get_grid_state, get_state, get_window_state
 from rl_snake.env import SnakeEnv
+from rl_snake.visuals import save_video
 
 
 def _build_run_name(args: argparse.Namespace) -> str:
-    """Auto-generate a descriptive run name from the config when none is given."""
     parts = [args.agent_type]
     if args.double_dqn:
         parts.append("double")
@@ -45,8 +38,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--silver-reward", type=float, default=5.0)
     p.add_argument("--poison-reward", type=float, default=0.0)
     p.add_argument("--death-reward", type=float, default=-10.0)
-    p.add_argument("--step-reward", type=float, default=-0.01,
-                   help="Per-step reward (negative penalises stalling)")
+    p.add_argument(
+        "--step-reward",
+        type=float,
+        default=-0.01,
+        help="Per-step reward (negative penalises stalling)",
+    )
     p.add_argument(
         "--distance-reward-scale",
         type=float,
@@ -100,7 +97,7 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=None,
         help="Soft target update rate τ (None = hard update every --target-update steps; "
-             "recommended: 0.005 for soft updates)",
+        "recommended: 0.005 for soft updates)",
     )
 
     # Architecture
@@ -321,13 +318,9 @@ def _save_checkpoint_video(
     extract_state,
     n_frames: int,
 ) -> None:
-    try:
-        from rl_snake.visuals import save_video
 
-        save_video(str(path), env, agent, extract_state, n_frames=n_frames)
-        print(f"  video → {path}")
-    except Exception as exc:
-        print(f"  video save skipped: {exc}")
+    save_video(str(path), env, agent, extract_state, n_frames=n_frames)
+    print(f"  video → {path}")
 
 
 def main() -> None:

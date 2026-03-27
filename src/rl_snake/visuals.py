@@ -32,7 +32,6 @@ _LEGEND_ENTRIES = [
 
 
 def _add_border(obs: np.ndarray) -> np.ndarray:
-    """Wrap a grid observation in a 1-cell obstacle border (value 6)."""
     h, w = obs.shape
     bordered = np.full((h + 2, w + 2), 6, dtype=obs.dtype)
     bordered[1:-1, 1:-1] = obs
@@ -40,7 +39,9 @@ def _add_border(obs: np.ndarray) -> np.ndarray:
 
 
 def _draw_legend(ax: Axes) -> None:
-    patches = [mpatches.Patch(facecolor=color, edgecolor="#636e72", label=label) for color, label in _LEGEND_ENTRIES]
+    patches = [
+        mpatches.Patch(facecolor=color, edgecolor="#636e72", label=label) for color, label in _LEGEND_ENTRIES
+    ]
     ax.legend(handles=patches, loc="upper left", bbox_to_anchor=(1.02, 1), borderaxespad=0, framealpha=0.9)
 
 
@@ -101,13 +102,7 @@ def make_animation(
     title: str = "Snake",
     legend: bool = True,
 ) -> FuncAnimation:
-    """Generate a Matplotlib animation for one rollout.
 
-    Args:
-        n_frames: Number of frames to stack for the agent input. When None
-                  (default), inferred automatically from the agent weights.
-                  The rendered video always shows the raw single-frame grid.
-    """
     from rl_snake.agent import FrameStack
 
     if n_frames is None:
@@ -169,22 +164,6 @@ def save_video(
     max_frames: int = 400,
     title: str = "Snake",
 ) -> None:
-    """Save a rollout video to disk.
-
-    Supports .gif (Pillow) and .mp4 (ffmpeg). Falls back to GIF if the path
-    extension is not recognised.
-
-    Args:
-        path:       Output file path (.gif or .mp4).
-        env:        A SnakeEnv instance (will be reset internally).
-        agent:      A trained agent with a select_action(state) method.
-        get_state:  Base state-extraction function (get_state or get_grid_state).
-        n_frames:   Frame-stack depth used during training. When None (default),
-                    inferred automatically from the agent weights.
-        fps:        Frames per second.
-        max_frames: Maximum number of game steps to record.
-        title:      Title shown on the animation.
-    """
     anim = make_animation(
         env,
         agent,

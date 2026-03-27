@@ -18,3 +18,5 @@ debug*
 models/
 checkpoints
 deliverables/poster/*
+deliverables/report/*
+!deliverables/report/report.tex
