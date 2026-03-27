@@ -134,6 +134,44 @@ def get_grid_state(env: SnakeEnv) -> np.ndarray:
     return grid
 
 
+def get_window_state(env: SnakeEnv, half_size: int = 5) -> np.ndarray:
+    """Return a 6-channel binary window (6, 2h+1, 2h+1) centered on the snake head.
+
+    Out-of-bounds cells are treated as obstacles (channel 5 = 1).
+    Same channel convention as get_grid_state.
+
+    Args:
+        env: SnakeEnv instance (after reset).
+        half_size: cells on each side of the head; window side = 2*half_size+1.
+    """
+    obs = env._get_observation()  # (H, W) int8, values 0-6
+    H_env, W_env = obs.shape
+    win = 2 * half_size + 1
+
+    # Pad with 6 (obstacle) on all sides
+    padded = np.full(
+        (H_env + 2 * half_size, W_env + 2 * half_size),
+        fill_value=6,
+        dtype=obs.dtype,
+    )
+    padded[half_size : half_size + H_env, half_size : half_size + W_env] = obs
+
+    # Head in padded coordinates
+    hr, hc = env.snake[0]
+    pr, pc = hr + half_size, hc + half_size
+    window_raw = padded[pr - half_size : pr + half_size + 1,
+                        pc - half_size : pc + half_size + 1]  # (win, win)
+
+    result = np.zeros((6, win, win), dtype=np.float32)
+    result[0] = window_raw == 1  # body
+    result[1] = window_raw == 2  # head
+    result[2] = window_raw == 3  # gold food
+    result[3] = window_raw == 4  # silver food
+    result[4] = window_raw == 5  # poison food
+    result[5] = window_raw == 6  # obstacle / out-of-bounds
+    return result
+
+
 # ---------------------------------------------------------------------------
 # Frame stacking
 # ---------------------------------------------------------------------------

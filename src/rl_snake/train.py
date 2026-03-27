@@ -9,10 +9,12 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+from functools import partial
+
 import numpy as np
 
 import wandb
-from rl_snake.agent import CNNDQNAgent, DQNAgent, FrameStack, get_grid_state, get_state
+from rl_snake.agent import CNNDQNAgent, DQNAgent, FrameStack, get_grid_state, get_state, get_window_state
 from rl_snake.env import SnakeEnv
 
 
@@ -94,8 +96,14 @@ def parse_args() -> argparse.Namespace:
         "--agent-type",
         type=str,
         default="mlp",
-        choices=["mlp", "cnn"],
-        help="mlp: 15-feature DQN;  cnn: full-grid CNN-DQN",
+        choices=["mlp", "cnn", "window-cnn"],
+        help="mlp: 15-feature DQN;  cnn: full-grid CNN-DQN;  window-cnn: local-window CNN-DQN",
+    )
+    p.add_argument(
+        "--window-size",
+        type=int,
+        default=11,
+        help="Side length of local observation window for window-cnn agent (must be odd)",
     )
     p.add_argument("--optimizer", type=str, default="adam", choices=["adam", "rmsprop"])
     p.add_argument("--n-frames", type=int, default=1, help="Frames to stack as input (1 = no stacking)")
@@ -173,6 +181,26 @@ def train(args: argparse.Namespace) -> None:
             target_tau=args.target_tau,
         )
         extract_state = get_grid_state
+    elif args.agent_type == "window-cnn":
+        agent = CNNDQNAgent(
+            height=args.window_size,
+            width=args.window_size,
+            lr=args.lr,
+            gamma=args.gamma,
+            epsilon_start=args.epsilon_start,
+            epsilon_end=args.epsilon_end,
+            epsilon_decay=args.epsilon_decay,
+            batch_size=args.batch_size,
+            buffer_capacity=args.buffer_capacity,
+            target_update_freq=args.target_update,
+            optimizer_name=args.optimizer,
+            n_frames=args.n_frames,
+            double_dqn=args.double_dqn,
+            dueling=args.dueling,
+            grad_clip=args.grad_clip or None,
+            target_tau=args.target_tau,
+        )
+        extract_state = partial(get_window_state, half_size=args.window_size // 2)
     else:
         agent = DQNAgent(
             lr=args.lr,
