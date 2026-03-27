@@ -80,11 +80,22 @@ def render_observation(
     return ax.figure, ax
 
 
+def _infer_n_frames(agent) -> int:
+    """Infer the frame-stack depth from a trained DQNAgent or CNNDQNAgent."""
+    from rl_snake.agent import CNNDQNAgent, DQNAgent
+
+    if isinstance(agent, DQNAgent):
+        return agent.q_net.trunk[0].in_features // DQNAgent.BASE_STATE_DIM
+    if isinstance(agent, CNNDQNAgent):
+        return agent.q_net.conv[0].in_channels // CNNDQNAgent.BASE_CHANNELS
+    return 1
+
+
 def make_animation(
     env,
     agent,
     get_state,
-    n_frames: int = 1,
+    n_frames: int | None = None,
     max_frames: int | None = None,
     interval: int = 150,
     title: str = "Snake",
@@ -93,11 +104,14 @@ def make_animation(
     """Generate a Matplotlib animation for one rollout.
 
     Args:
-        n_frames: Number of frames to stack for the agent input (must match
-                  how the agent was trained). The rendered video always shows
-                  the raw single-frame grid regardless of this value.
+        n_frames: Number of frames to stack for the agent input. When None
+                  (default), inferred automatically from the agent weights.
+                  The rendered video always shows the raw single-frame grid.
     """
     from rl_snake.agent import FrameStack
+
+    if n_frames is None:
+        n_frames = _infer_n_frames(agent)
 
     frame_stack = FrameStack(n_frames, get_state)
 
@@ -150,7 +164,7 @@ def save_video(
     env,
     agent,
     get_state,
-    n_frames: int = 1,
+    n_frames: int | None = None,
     fps: int = 8,
     max_frames: int = 400,
     title: str = "Snake",
@@ -165,7 +179,8 @@ def save_video(
         env:        A SnakeEnv instance (will be reset internally).
         agent:      A trained agent with a select_action(state) method.
         get_state:  Base state-extraction function (get_state or get_grid_state).
-        n_frames:   Frame-stack depth used during training.
+        n_frames:   Frame-stack depth used during training. When None (default),
+                    inferred automatically from the agent weights.
         fps:        Frames per second.
         max_frames: Maximum number of game steps to record.
         title:      Title shown on the animation.

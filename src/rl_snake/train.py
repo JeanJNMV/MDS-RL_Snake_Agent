@@ -27,7 +27,7 @@ def _build_run_name(args: argparse.Namespace) -> str:
         parts.append("dueling")
     if args.n_frames > 1:
         parts.append(f"fs{args.n_frames}")
-    if args.n_dynamic_obstacles > 0 or args.n_silver > 0 or args.n_poison > 0:
+    if args.n_dynamic_obstacles > 0 or args.n_rand_obstacles > 0 or args.n_silver > 0 or args.n_poison > 0:
         parts.append("hard")
     return "_".join(parts)
 
@@ -53,6 +53,12 @@ def parse_args() -> argparse.Namespace:
         default=0.0,
         help="Scale for potential-based Manhattan distance reward shaping (0 = disabled)",
     )
+    p.add_argument(
+        "--body-proximity-scale",
+        type=float,
+        default=0.0,
+        help="Scale for potential-based body-proximity shaping: rewards moving away from own body (0 = disabled)",
+    )
 
     # Environment — food
     p.add_argument("--n-gold", type=int, default=1)
@@ -66,6 +72,12 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=0,
         help="Number of moving wall segments (size 3)",
+    )
+    p.add_argument(
+        "--n-rand-obstacles",
+        type=int,
+        default=0,
+        help="Number of randomly placed single-cell obstacles re-spawned each episode",
     )
 
     # Agent
@@ -104,6 +116,14 @@ def parse_args() -> argparse.Namespace:
         type=int,
         default=11,
         help="Side length of local observation window for window-cnn agent (must be odd)",
+    )
+    p.add_argument(
+        "--cnn-hidden",
+        type=int,
+        nargs="+",
+        default=[512],
+        metavar="N",
+        help="FC hidden layer sizes after CNN flatten (e.g. --cnn-hidden 256 or --cnn-hidden 256 128)",
     )
     p.add_argument("--optimizer", type=str, default="adam", choices=["adam", "rmsprop"])
     p.add_argument("--n-frames", type=int, default=1, help="Frames to stack as input (1 = no stacking)")
@@ -153,12 +173,14 @@ def train(args: argparse.Namespace) -> None:
         death_reward=args.death_reward,
         step_reward=args.step_reward,
         distance_reward_scale=args.distance_reward_scale,
+        body_proximity_reward_scale=args.body_proximity_scale,
         max_steps=args.max_steps,
         n_gold=args.n_gold,
         n_silver=args.n_silver,
         n_poison=args.n_poison,
         poison_shrink=args.poison_shrink,
         n_dynamic_obstacles=args.n_dynamic_obstacles,
+        n_rand_obstacles=args.n_rand_obstacles,
     )
 
     if args.agent_type == "cnn":
@@ -173,6 +195,7 @@ def train(args: argparse.Namespace) -> None:
             batch_size=args.batch_size,
             buffer_capacity=args.buffer_capacity,
             target_update_freq=args.target_update,
+            hidden=tuple(args.cnn_hidden),
             optimizer_name=args.optimizer,
             n_frames=args.n_frames,
             double_dqn=args.double_dqn,
@@ -193,6 +216,7 @@ def train(args: argparse.Namespace) -> None:
             batch_size=args.batch_size,
             buffer_capacity=args.buffer_capacity,
             target_update_freq=args.target_update,
+            hidden=tuple(args.cnn_hidden),
             optimizer_name=args.optimizer,
             n_frames=args.n_frames,
             double_dqn=args.double_dqn,

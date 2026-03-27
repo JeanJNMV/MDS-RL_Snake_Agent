@@ -13,6 +13,7 @@ uv run src/rl_snake/train.py \
   --death-reward -1.0 \
   --step-reward 0.0 \
   --distance-reward-scale 0.0 \
+  --cnn-hidden 128 \
   --seed 42 \
   --save-dir checkpoints/part1 \
   --wandb-project rl-snake \
