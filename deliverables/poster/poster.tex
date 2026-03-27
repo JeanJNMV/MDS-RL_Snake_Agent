@@ -39,14 +39,14 @@
 
 % ── Title block ───────────────────────────────────────────────────────────────
 \title[Reinforcement Learning -- CentraleSup\'elec]{%
-  Snake in all its forms}
-\author{Fotios Kapotos, Adonis Jamal, Jean-Vincent Martini}
+  Snake in All its Forms - Reinforcement Learning in Custom Snake Environments}
+\author{Adonis Jamal, Fotios Kapotos, Jean-Vincent Martini}
 \institute[CentraleSup\'elec]{CentraleSup\'elec}
 \date{March 2026}
 
 % =============================================================================
 \begin{document}
-\begin{frame}[t]
+\begin{frame}[t] 
 \vskip0.1cm
 \begin{multicols}{2}
 
@@ -56,14 +56,14 @@
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\linewidth]{img/map_simple.png}
-    \caption{Example figure}
-    \label{fig:example}
+    \caption{Simple $16\!\times\!16$ grid}
+    \label{fig:map_simple}
 \end{figure}
 
 \begin{itemize}
-  \item Agent controls a snake on a $16\!\times\!16$ grid; eats food to grow longer
-  \item Dies on wall or self-collision; objective: Maximise snake lenght
-  \item \textbf{MLP agent:} 15-dim hand-crafted input --- danger flags, direction bits, food/poison bearings
+  \item Agent controls a snake on a $16\!\times\!16$ grid; eating food grows the body by one segment
+  \item Terminates on wall or self-collision; Objective: Maximising the snake's length
+  \item \textbf{MLP agent:} 15-dim hand-crafted input: danger flags, direction bits, food/poison bearings
   \item \textbf{CNN agent:} 6-channel raw grid (body, head, gold, silver, poison, obstacles); learns spatial patterns directly
   \item Both trained with DQN; action space: 4 absolute directions
 \end{itemize}
@@ -87,9 +87,9 @@
   \item Greedy food-chasing closes off the snake's own escape routes
   \item Reward becomes sparse: death rare at length~3, near-certain at length~20+
   \item Agent must plan \textbf{many steps ahead} to keep passages open
-  \item \textbf{Dense reward shaping:} $+\Delta d$ potential toward food each step
-  \item \textbf{Loop penalty} ($-8$): penalises revisiting the same cell $\geq\!4\!\times$ in a 20-step window
-  \item \textbf{Curriculum:} initial length $3\!\to\!7\!\to\!15$ before switching to hard env
+  \item \textbf{Potential-based distance shaping:} reward proportional to the reduction in Manhattan distance to the nearest food each step
+  \item \textbf{Loop penalty} ($-8$): discourages revisiting the same cell $\geq\!4$ times within a 20-step window
+  \item \textbf{Curriculum:} agent trained at initial lengths $3\!\to\!7\!\to\!15$ before transferring to the hard environment
 \end{itemize}
 
 \end{block}
@@ -104,17 +104,17 @@
 \begin{figure}[h]
     \centering
     \includegraphics[width=0.5\linewidth]{img/map_hard.png}
-    \caption{Example figure}
-    \label{fig:example}
+    \caption{Hard environment: gold, silver, and poison food alongside static obstacles on a $16\!\times\!16$ grid}
+    \label{fig:map_hard}
 \end{figure}
 
 \begin{itemize}
-  \item \textbf{Gold food} ($+5$): primary target; respawns immediately after eating
-  \item \textbf{Silver food} ($+0.5$): secondary target; worth pursuing when gold is far
-  \item \textbf{Poison food}: shrinks snake by 2 segments; must be actively avoided
-  \item \textbf{Static obstacles}: fixed 3-cell walls placed at episode reset; lethal on contact
-  \item \textbf{Dynamic obstacles}: 3-cell walls bouncing back and forth within a fixed range; lethal even if the wall \emph{moves into} a stationary snake
-  \item A single frame cannot reveal obstacle direction --- temporal context is essential
+  \item \textbf{Gold food} ($+5$): primary target; respawns immediately upon collection
+  \item \textbf{Silver food} ($+0.5$): secondary target; worth pursuing when gold is distant
+  \item \textbf{Poison food}: shrinks the snake by 2 segments upon consumption; must be actively avoided
+  \item \textbf{Static obstacles}: fixed 3-cell walls spawned at episode reset; lethal on contact
+  \item \textbf{Dynamic obstacles}: 3-cell walls that bounce back and forth within a fixed range; lethal even when a wall \emph{moves into} a stationary snake
+  \item A single frame is insufficient to infer obstacle direction --- \textbf{temporal context is essential}
 \end{itemize}
 
 \end{block}
@@ -143,10 +143,10 @@
 \figplaceholder[8cm]{Figure: learning curves (reward vs.\ training steps) --- MLP vs.\ CNN on simple env; ablation bar chart for hard env strategies}
 
 \begin{itemize}
-  \item MLP converges faster on simple env; CNN generalises better spatially on the hard env
-  \item Curriculum training essential: direct hard-env training without warmup collapses
-  \item Frame stacking + dueling architecture are the key components for dynamic obstacle avoidance
-  \item Double DQN and $n$-step returns provide consistent improvements across all settings
+  \item MLP converges faster on the simple environment; CNN generalises better spatially in the hard environment
+  \item Curriculum training is essential: agents trained directly on the hard environment without warmup fail to converge
+  \item Frame stacking and dueling architecture are the most impactful components for dynamic obstacle avoidance
+  \item Double DQN and $n$-step returns provide consistent gains across all experimental settings
 \end{itemize}
 
 \end{block}
