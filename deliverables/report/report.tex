@@ -21,7 +21,7 @@ We present a comparative study of deep reinforcement learning methods on Snake,
 a grid-world game that exhibits many of the challenges found in real sequential
 decision-making problems: sparse rewards, partial observability, long-horizon
 planning, and increasingly complex environment dynamics.
-We develop a Snake environment that supports multiple food types (gold, silver, and poison), static and dynamic obstacles,and three distinct observation spaces: a 15-dimensional hand-crafted feature
+We develop a Snake environment that supports multiple food types (gold, silver, and poison), static and dynamic obstacles, and three distinct observation spaces: a 15-dimensional hand-crafted feature
 vector, an egocentric convolutional window, and a full-grid CNN observation.
 Using DQN and its extensions (Double DQN, Dueling networks, frame stacking), we study the ability of our agents to solve, generalize and adapt to a range of different environments, from easy to complex.
 Our results show that CNN-based agents consistently outperform hand-crafted
@@ -51,23 +51,6 @@ Notably, a standard DQN agent~\cite{mnih2015human} quickly reaches very good per
   \item An evaluation of DQN extensions (Double DQN, Dueling networks,
         frame stacking) in complex environments.
 \end{itemize}
-
-\section{Related Work}
-\label{sec:related}
-
-Several works have applied deep reinforcement learning to the Snake game.
-Wei et al.~\cite{wei2018autonomous} trained a CNN-based DQN agent on the
-classic Snake game, proposing a proximity-based reward mechanism and a
-dual experience replay strategy to handle sparse and delayed rewards.
-Sebastianelli et al.~\cite{sebastianelli2021deep} explored DQN with
-hand-crafted sensor features rather than image pixels, showing that
-compact state representations can achieve competitive performance with
-significantly reduced training time.
-In contrast to these works, our study goes beyond the classic single-food
-setting by introducing multiple food types, poison, and dynamic obstacles,
-and provides a systematic comparison of hand-crafted MLP features against
-egocentric and full-grid CNN representations across environments of
-increasing complexity.
  
 \section{Environment Design}
 \label{sec:env}
@@ -81,7 +64,7 @@ risks (straight/left/right), current direction, and relative positions of
 nearest food and poison;\\
 (ii) \textbf{Egocentric CNN}: a $C \times k \times k$ tensor centered on the
 head with $C=6$ channels (body, head, gold, silver, poison, obstacles),
-capturing local spatial structure;\\
+capturing local spatial structure;In our case we choose $k=6$.\\
 (iii) \textbf{Full-grid CNN}: a $C \times H \times W$ tensor providing global
 context at higher dimensional cost.
 
@@ -145,7 +128,8 @@ in states where actions have similar value.
 \paragraph{Temporal encoding.}
 For CNN agents, we stack the last $n=4$ observations into a
 $(4C) \times H \times W$ tensor. This provides implicit velocity information
-for dynamic obstacles and mitigates partial observability.
+for dynamic obstacles and mitigates partial observability. We find that $4$ frames is the best compromise
+between computational effeciency and good state representation. 
 
 % ── 4. Experiments ────────────────────────────────────────────────────────────
 \section{Experiments and Results}
@@ -263,9 +247,12 @@ parameters to improve convergence and stability.
 \section{Conclusion}
 \label{sec:conclusion}
 
-We presented a comparative study of Deep Q-Network variants on a configurable Snake environment of increasing complexity. Our results show that while hand-crafted MLP agents are sufficient in simple settings, they fail to scale to more complex, dynamic environments. In contrast, CNN-based agents, particularly when combined with Double DQN, Dueling architectures, and frame stacking, demonstrate stronger performance and significantly better generalization.
+We presented a comparative study of Deep Q-Network variants on a configurable Snake environment of increasing complexity. Our results show that while hand-crafted MLP agents perform well in simple settings, they fail to scale to more complex and dynamic environments. In contrast, CNN-based agents, especially when combined with Double DQN, Dueling architectures, and frame stacking, achieve stronger performance and exhibit improved generalization.
 
-Overall, our findings highlight the importance of spatial representations and stabilisation techniques for solving reinforcement learning problems with rich dynamics and partial observability.
+Overall, these results highlight the importance of spatial representations and stabilisation techniques for reinforcement learning problems involving rich dynamics and partial observability.
+
+\paragraph{Limitations.}
+This study has several limitations. First, experiments are conducted on relatively small grid sizes ($16 \times 16$), and scaling to larger environments remains unexplored. Second, generalization is only evaluated across variations of the same environment, and not across fundamentally different tasks. Third, performance is sensitive to hyperparameter choices and reward shaping, which may affect reproducibility and obscure intrinsic method comparisons. Fourth, due to computational constraints, results are based on single training runs rather than multiple seeds, limiting the statistical robustness of our conclusions. Finally, our analysis is purely empirical and does not provide theoretical guarantees on stability or convergence.
 
 \bibliographystyle{splncs04}
 \bibliography{bibliography}
