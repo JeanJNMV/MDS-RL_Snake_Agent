@@ -109,9 +109,7 @@ dynamic obstacles (3-cell walls oscillating along a fixed axis). Food is never
 spawned in occupied or swept regions. We define two regimes:
 \textbf{easy} ($16 \times 16$, one gold item, no obstacles, static dynamics)
 and \textbf{hard} ($16 \times 16$, multiple foods including poison, static,
-random, and dynamic obstacles). The hard setting introduces non-stationarity,
-partial observability under egocentric views, and long-horizon planning
-challenges.
+random, and dynamic obstacles).
 % ── 3. Methods ────────────────────────────────────────────────────────────────
 \section{Methods}
 \label{sec:methods}
@@ -153,13 +151,6 @@ for dynamic obstacles and mitigates partial observability.
 \section{Experiments and Results}
 \label{sec:exp}
 
-\subsection{Experimental Setup}
-\label{sec:setup}
-
-Our primary evaluation metric is the snake length, complemented by
-total reward and episode length (steps). Due to the high variance of
-training, all curves are smoothed using an exponential moving average. All the runs were performed on a NVIDIA A100 GPU cluster.
-
 \subsection{MLP agent on the easy environment}
 \label{sec:exp_baseline}
 We start by training an MLP agent on the easy environment.
@@ -174,13 +165,13 @@ but can affect training stability and the speed of convergence.
 
 \begin{figure}[h]
   \centering
-  \begin{subfigure}{0.40\linewidth}
+  \begin{subfigure}{0.35\linewidth}
     \centering
     \includegraphics[width=\linewidth]{../poster/img/MLP rewards.png}
     \caption{Baseline vs.\ step penalty vs.\ distance shaping}
   \end{subfigure}
   \hfill
-  \begin{subfigure}{0.40\linewidth}
+  \begin{subfigure}{0.35\linewidth}
     \centering
     \includegraphics[width=\linewidth]{../poster/img/reward magnitude_scaling.png}
     \caption{Effect of reward magnitude scaling}
@@ -203,14 +194,14 @@ converges more slowly, it achieves slightly better final performance.
 
 \begin{figure}[h]
   \centering
-  \begin{subfigure}{0.48\linewidth}
+  \begin{subfigure}{0.44\linewidth}
     \centering
     \includegraphics[width=\linewidth]{../poster/img/Ergovsfull.png}
     \caption{Egocentric vs.\ full-grid CNN}
     \label{fig:ego_vs_full}
   \end{subfigure}
   \hfill
-  \begin{subfigure}{0.48\linewidth}
+  \begin{subfigure}{0.44\linewidth}
     \centering
     \includegraphics[width=\linewidth]{../poster/img/train_simple.png}
     \caption{MLP vs.\ CNN}
